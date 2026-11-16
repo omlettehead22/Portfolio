@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{{owner}} · Portfolio</title>
+    <meta name="description" content="{{tagline}}" />
+    <meta name="theme-color" content="#0b1633" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="game-page">
+    <header class="topbar">
+      <span class="brand">{{owner}}</span>
+      <nav aria-label="Site">
+        <a class="btn" href="projects.html">View as list</a>
+        <button class="btn" id="sound-toggle" type="button" aria-pressed="false">Sound: off</button>
+        <button class="btn" id="pause-toggle" type="button" aria-pressed="false" disabled>Pause</button>
+      </nav>
+    </header>
+
+    <main id="stage">
+      <div id="viewport">
+        <div id="game"></div>
+
+        <div id="minimap" hidden>
+          <div class="mm-track" aria-hidden="true">
+            <span id="mm-player"></span>
+          </div>
+          <span id="mm-count" aria-live="polite"></span>
+        </div>
+
+        <div id="prompt" hidden aria-hidden="true">Press <kbd>E</kbd> <span id="prompt-title"></span></div>
+
+        <div id="paused" class="veil" hidden>
+          <p>Paused</p>
+          <button class="btn primary" id="resume" type="button">Resume</button>
+        </div>
+      </div>
+
+      <div id="touch" hidden>
+        <div class="pad">
+          <button type="button" data-hold="left" aria-label="Move left">◀</button>
+          <button type="button" data-hold="right" aria-label="Move right">▶</button>
+        </div>
+        <div class="pad">
+          <button type="button" data-tap="action" aria-label="Open the nearby project">E</button>
+          <button type="button" data-hold="jump" aria-label="Jump">▲</button>
+        </div>
+      </div>
+
+      <section id="intro" aria-labelledby="intro-title">
+        <div class="card">
+          <h1 id="intro-title">{{owner}}</h1>
+          <p class="lede">{{tagline}} Walk along the street and step into a building to read about each one.</p>
+
+          <h2>Controls</h2>
+          <dl class="controls">
+            <div><dt><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></dt><dd>Walk</dd></div>
+            <div><dt><kbd>Space</kbd>, <kbd>↑</kbd> or <kbd>W</kbd></dt><dd>Jump</dd></div>
+            <div><dt><kbd>E</kbd></dt><dd>Open the project you are standing at</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>Close a project</dd></div>
+            <div><dt><kbd>P</kbd></dt><dd>Pause</dd></div>
+          </dl>
+          <p class="hint">On a phone or tablet, use the on-screen buttons or tap a building.</p>
+
+          <label class="check"><input type="checkbox" id="intro-sound" /> Sound effects</label>
+
+          <div id="loading">
+            <progress id="load-bar" max="1" value="0" aria-label="Loading the game"></progress>
+            <span id="load-text">Loading…</span>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="start" type="button" disabled>Start</button>
+            <a class="btn" href="projects.html">Skip the game: view as list</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="project-modal" aria-labelledby="pm-title">
+      <article class="card">
+        <button class="close" id="pm-close" type="button" aria-label="Close">✕</button>
+        <h2 id="pm-title"></h2>
+        <p class="lede" id="pm-summary"></p>
+        <h3>Key results</h3>
+        <ul id="pm-results"></ul>
+        <h3>Tools used</h3>
+        <ul class="chips" id="pm-tools"></ul>
+        <h3>Links</h3>
+        <ul class="links" id="pm-links"></ul>
+      </article>
+    </dialog>
+
+    <noscript>
+      <p class="noscript">This page is a small game and needs JavaScript. <a href="projects.html">Read the project list instead.</a></p>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

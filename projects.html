@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Projects · {{owner}}</title>
+    <meta name="description" content="{{tagline}}" />
+    <meta name="theme-color" content="#0b1633" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="list-page">
+    <header class="topbar">
+      <span class="brand">{{owner}}</span>
+      <nav aria-label="Site">
+        <a class="btn" href="./">Play the game version</a>
+        <a class="btn" href="{{github}}">GitHub</a>
+      </nav>
+    </header>
+
+    <main class="list">
+      <h1>Projects</h1>
+      <p class="lede">{{tagline}}</p>
+      <!-- Filled in from public/projects.json when the site is built (see vite.config.js). -->
+      {{projects}}
+    </main>
+  </body>
+</html>

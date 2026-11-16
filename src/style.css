@@ -1,0 +1,499 @@
+/* Colours are taken from the pixel art: night navy, turbine teal, window orange. */
+:root {
+  --night: #0b1633;
+  --panel: #12224a;
+  --line: #2b4f66;
+  --teal: #7fb3b8;
+  --text: #e8f0ea;
+  --muted: #a9bfc6;
+  --glow: #f6a94a;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.5;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+a {
+  color: var(--glow);
+}
+
+:focus-visible {
+  outline: 2px solid var(--glow);
+  outline-offset: 2px;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--night);
+  white-space: nowrap;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--mono);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+/* --- buttons ---------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--text);
+  font: 600 0.8rem/1.2 var(--mono);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--teal);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--glow);
+  border-color: var(--glow);
+  color: var(--night);
+}
+
+/* --- top bar ---------------------------------------------------------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: 46px; /* a whole number, so the canvas below starts on a pixel boundary */
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.topbar nav {
+  display: flex;
+  gap: 0.4rem;
+}
+.brand {
+  font: 600 0.9rem var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 560px) {
+  .game-page .brand {
+    display: none;
+  }
+  .topbar nav {
+    flex: 1;
+    justify-content: space-between;
+  }
+}
+
+/* --- game page -------------------------------------------------------------- */
+.game-page {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+
+#stage {
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+/* with touch buttons on a tall screen, keep the picture at the top and the buttons below it */
+.touch #stage {
+  align-items: start;
+}
+
+#viewport {
+  position: relative;
+  overflow: hidden;
+}
+#game canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+}
+
+/* "Press E" label, moved into place by main.js */
+#prompt {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--glow);
+  border-radius: 4px;
+  background: rgb(11 22 51 / 0.92);
+  font: 600 0.75rem var(--mono);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* minimap: a strip along the top of the picture */
+#minimap {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  translate: -50% 0;
+  width: min(60%, 280px);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+  font: 600 0.65rem var(--mono);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.mm-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgb(232 240 234 / 0.25);
+}
+.mm-building,
+#mm-player {
+  position: absolute;
+  top: 50%;
+  translate: -50% -50%;
+}
+.mm-building {
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--teal);
+  background: var(--night);
+}
+.mm-building.visited {
+  border-color: var(--glow);
+  background: var(--glow);
+}
+#mm-player {
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--text);
+}
+
+.veil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  background: rgb(11 22 51 / 0.8);
+  font: 600 1.1rem var(--mono);
+}
+.veil p {
+  margin: 0;
+}
+
+/* --- cards (intro and project window) --------------------------------------- */
+.card {
+  width: min(34rem, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.card h2,
+.card h3 {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+.card h1,
+dialog .card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.35rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+.card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.card li + li {
+  margin-top: 0.3rem;
+}
+.lede {
+  margin: 0;
+  color: var(--muted);
+}
+
+ul.chips,
+ul.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0;
+  list-style: none;
+}
+ul.chips li,
+ul.links li {
+  margin: 0;
+}
+ul.chips li {
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font: 0.78rem var(--mono);
+}
+ul.links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--glow);
+  border-radius: 4px;
+  font: 600 0.8rem var(--mono);
+  text-decoration: none;
+}
+ul.links a:hover {
+  background: var(--glow);
+  color: var(--night);
+}
+
+/* intro */
+#intro {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 0.75rem;
+  background: rgb(11 22 51 / 0.82);
+}
+.controls {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+.controls div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+}
+.controls dd {
+  margin: 0;
+  color: var(--muted);
+}
+.hint {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+  font-size: 0.9rem;
+}
+.check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--glow);
+}
+#loading {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+  font: 0.8rem var(--mono);
+  color: var(--muted);
+}
+#loading.error {
+  color: var(--glow);
+}
+#load-bar {
+  flex: 1;
+  height: 8px;
+  accent-color: var(--glow);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* project window */
+dialog {
+  width: min(36rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  overflow: visible;
+}
+dialog::backdrop {
+  background: rgb(4 9 24 / 0.7);
+}
+dialog .card {
+  position: relative;
+  width: 100%;
+  max-height: calc(100dvh - 1.5rem);
+  border-color: var(--glow);
+}
+dialog .card h2 {
+  padding-right: 2.5rem;
+}
+.close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--night);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.close:hover {
+  border-color: var(--teal);
+}
+
+/* --- touch buttons ----------------------------------------------------------- */
+#touch {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem max(0.75rem, env(safe-area-inset-right)) max(0.9rem, env(safe-area-inset-bottom))
+    max(0.75rem, env(safe-area-inset-left));
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pad {
+  display: flex;
+  gap: 0.6rem;
+}
+#touch button {
+  width: 60px;
+  height: 60px;
+  border: 2px solid var(--teal);
+  border-radius: 50%;
+  background: rgb(18 34 74 / 0.75);
+  color: var(--text);
+  font: 700 1.2rem var(--mono);
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#touch button.down,
+#touch button:active {
+  background: var(--glow);
+  border-color: var(--glow);
+  color: var(--night);
+}
+#touch [data-tap] {
+  border-color: var(--glow);
+}
+
+.noscript {
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0;
+  padding: 1rem;
+  background: var(--panel);
+  text-align: center;
+}
+
+/* --- list page -------------------------------------------------------------- */
+.list {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 4rem;
+}
+.list h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.6rem;
+}
+.list article {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.list article h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.25rem;
+}
+.list article p {
+  margin: 0;
+  color: var(--muted);
+}
+.list article h3 {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+.list article ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.list article ul.chips,
+.list article ul.links {
+  padding: 0;
+}
+.list article li + li {
+  margin-top: 0.3rem;
+}
+.list ul.chips li + li,
+.list ul.links li + li {
+  margin-top: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
