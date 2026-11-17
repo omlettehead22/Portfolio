@@ -26,13 +26,19 @@ npm run build    # production build in dist/
 
 ## Change the content
 
-Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, and where its building stands (`x`, in pixels along a 1440-pixel street). Add an entry and a building appears; the list page updates too.
+Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, where its building stands (`x`, in pixels along a 1440-pixel street) and which building it uses (`sprite`). Add an entry and a building appears; the list page updates too.
 
-Player speed, gravity and jump height are at the top of [`src/config.js`](src/config.js).
+Buildings available: `battery_lab`, `pcm_lab`, `hydrogen_plant`, `cold_station`, `sim_centre`, `control_room`, `wind_solar_hub`, `workshop`, `library`, `home_base`.
+
+Movement (speed, acceleration, friction, jump), the day/night timetable and the street scenery are in [`src/config.js`](src/config.js).
+
+## Day and night
+
+The street follows your own clock: sun by day, moon, stars and lit lamp posts by night, with dawn and dusk in between. To see another time, add `?time=night` (or `dawn`, `day`, `dusk`, an hour such as `21.5`, or `cycle` for a whole day in a minute) to the address.
 
 ## Art
 
-The art briefs are in [`public/assets/assets.md`](public/assets/assets.md) and the original renders in `art-src/`. `npm run assets` turns them into the sprites the game loads: it removes the magenta background, shrinks each picture to its pixel grid, cuts the background into three parallax layers, and builds the walk frames from the single standing pose.
+The art briefs are in [`public/assets/assets.md`](public/assets/assets.md) and the original renders in `art-src/`. `npm run assets` turns them into the sprites the game loads: it removes the magenta background, shrinks each picture to its pixel grid, packs buildings and props into sprite atlases, cuts the background into parallax layers and makes a daylight version of each.
 
 ## Built with
 

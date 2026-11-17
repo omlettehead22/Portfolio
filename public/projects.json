@@ -8,8 +8,7 @@
     {
       "id": "packtherm",
       "x": 430,
-      "sprite": "building",
-      "icon": "thermometer",
+      "sprite": "battery_lab",
       "title": "PackTherm",
       "summary": "A battery thermal management design toolkit that compares cooling layouts for cylindrical-cell EV packs.",
       "results": [
@@ -26,8 +25,7 @@
     {
       "id": "agile-flex",
       "x": 950,
-      "sprite": "building",
-      "icon": "battery",
+      "sprite": "wind_solar_hub",
       "title": "Agile Flex Optimiser",
       "summary": "An optimiser that schedules a household's EV charging and home battery against 12 months of real Octopus Agile prices.",
       "results": [

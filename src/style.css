@@ -166,13 +166,16 @@ h3 {
   top: 6px;
   left: 50%;
   translate: -50% 0;
-  width: min(60%, 280px);
+  width: min(64%, 290px);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(11 22 51 / 0.72); /* stays readable over the daytime sky */
   display: flex;
   align-items: center;
   gap: 0.5rem;
   pointer-events: none;
   font: 600 0.65rem var(--mono);
-  color: var(--muted);
+  color: var(--text);
   white-space: nowrap;
 }
 .mm-track {
