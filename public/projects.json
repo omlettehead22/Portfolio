@@ -7,7 +7,7 @@
   "projects": [
     {
       "id": "packtherm",
-      "x": 430,
+      "x": 330,
       "sprite": "battery_lab",
       "title": "PackTherm",
       "summary": "A battery thermal management design toolkit that compares cooling layouts for cylindrical-cell EV packs.",
@@ -16,15 +16,30 @@
         "Road-trip study on a 61 kWh LG M50 pack: 39 cooling designs simulated, 23 feasible.",
         "Liquid cooling in that study costs about 0.05 % of the energy moved, against 0.29 % for the lightest forced-air design."
       ],
-      "tools": ["Python", "NumPy", "SciPy", "pandas", "FastAPI", "React", "TypeScript", "Pyodide"],
+      "tools": [
+        "Python",
+        "NumPy",
+        "SciPy",
+        "pandas",
+        "FastAPI",
+        "React",
+        "TypeScript",
+        "Pyodide"
+      ],
       "links": [
-        { "label": "Try it in the browser", "url": "https://omlettehead22.github.io/PackTherm/" },
-        { "label": "Source on GitHub", "url": "https://github.com/omlettehead22/PackTherm" }
+        {
+          "label": "Try it in the browser",
+          "url": "https://omlettehead22.github.io/PackTherm/"
+        },
+        {
+          "label": "Source on GitHub",
+          "url": "https://github.com/omlettehead22/PackTherm"
+        }
       ]
     },
     {
       "id": "agile-flex",
-      "x": 950,
+      "x": 560,
       "sprite": "wind_solar_hub",
       "title": "Agile Flex Optimiser",
       "summary": "An optimiser that schedules a household's EV charging and home battery against 12 months of real Octopus Agile prices.",
@@ -33,11 +48,30 @@
         "3,055 kWh moved out of the 16:00–19:00 peak, and emissions down 22 %.",
         "Keeps 92 % of the saving when it plans on a price forecast instead of the real prices."
       ],
-      "tools": ["Python", "PuLP (MILP)", "pandas", "FastAPI", "GitHub Actions"],
+      "tools": [
+        "Python",
+        "PuLP (MILP)",
+        "pandas",
+        "FastAPI",
+        "GitHub Actions"
+      ],
       "links": [
-        { "label": "Off-peak live demo", "url": "https://agile-flex-offpeak.onrender.com" },
-        { "label": "Source on GitHub", "url": "https://github.com/omlettehead22/Agile-Flex-Optimiser" }
+        {
+          "label": "Off-peak live demo",
+          "url": "https://agile-flex-offpeak.onrender.com"
+        },
+        {
+          "label": "Source on GitHub",
+          "url": "https://github.com/omlettehead22/Agile-Flex-Optimiser"
+        }
       ]
-    }
+    },
+    { "id": "pcm-lab", "x": 790, "sprite": "pcm_lab", "draft": true },
+    { "id": "cold-station", "x": 1030, "sprite": "cold_station", "draft": true },
+    { "id": "hydrogen-plant", "x": 1270, "sprite": "hydrogen_plant", "draft": true },
+    { "id": "control-room", "x": 1510, "sprite": "control_room", "draft": true },
+    { "id": "sim-centre", "x": 1750, "sprite": "sim_centre", "draft": true },
+    { "id": "workshop", "x": 1990, "sprite": "workshop", "draft": true },
+    { "id": "library", "x": 2230, "sprite": "library", "draft": true }
   ]
 }

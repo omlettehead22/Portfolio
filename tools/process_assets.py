@@ -2,99 +2,53 @@
 
 Run from the repo root:  python3 tools/process_assets.py
 
-The source images are large renders on a magenta background. For each one this
-script removes the magenta, reduces the picture to a small palette, and shrinks
-it to the pixel grid given in public/assets/assets.md by taking the most common
-colour in each cell (which keeps edges crisp where averaging would blur them).
+The source images are pixel art rendered large on a magenta background, each on
+a regular grid: buildings, props and the background use 480 art pixels across
+the 2576-pixel picture (the game's own grid), the characters 240. This script
+finds where that grid falls, reads one colour from the middle of every art
+pixel, and so gets each sprite back pixel for pixel, with no resizing. It then
+merges the near-identical shades left by JPEG compression into one palette per
+sheet and cleans up single stray pixels.
 
 Outputs:
   bg_hills.png, bg_city.png               night parallax layers cut from the background
   bg_hills_day.png, bg_city_day.png       the same layers recoloured for daylight
   moon.png                                the crescent moon lifted out of the sky
-  building.png                            the first lab building, 128x128
   buildings.png + buildings.json          atlas of the ten themed buildings
   props.png + props.json                  atlas of every prop, tile, collectible and vehicle
-  character.png                           32x32 frames, see CHARACTER_FRAMES
+  character.png                           48x48 frames, see CHARACTER_FRAMES
   ../favicon.png                          the battery prop, doubled
 
 The atlases are in Phaser's JSON format: each sprite is looked up by name.
+art-src/building.jpg (the first concept building) is no longer used.
 """
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "art-src"
 OUT = ROOT / "public" / "assets"
 
-
 OUTLINE = (11, 22, 51)  # the dark navy used for outlines throughout the art
+
+# Art pixels across each source picture, and how many colours to keep for it.
+GRIDS = {
+    "buildings.jpg": (480, 64),
+    "props.jpg": (480, 64),
+    "background.jpg": (480, 40),
+    "characters.jpg": (240, 40),
+}
 
 
 def magenta_mask(rgb):
     """True where a pixel is background magenta (either of the two shades used)."""
     r, g, b = (rgb[..., i].astype(int) for i in range(3))
     return (r > 150) & (b > 150) & (g < 110) & (abs(r - b) < 90)
-
-
-def quantize(rgb, colours):
-    """Return (index array, palette) for an RGB array."""
-    img = Image.fromarray(rgb).quantize(colours, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
-    pal = np.array(img.getpalette()[: colours * 3], dtype=np.uint8).reshape(-1, 3)
-    return np.array(img), pal
-
-
-def mode_downscale(rgb, out_w, out_h, colours, keyed=True):
-    """Shrink to out_w x out_h by majority colour per cell. Returns RGBA array."""
-    h, w = rgb.shape[:2]
-    idx, pal = quantize(rgb, colours)
-    if keyed:
-        idx = np.where(magenta_mask(rgb), colours, idx)  # extra index = transparent
-    n = colours + 1
-    out = np.zeros((out_h, out_w, 4), dtype=np.uint8)
-    ys = np.linspace(0, h, out_h + 1).round().astype(int)
-    xs = np.linspace(0, w, out_w + 1).round().astype(int)
-    for j in range(out_h):
-        for i in range(out_w):
-            cell = idx[ys[j] : ys[j + 1], xs[i] : xs[i + 1]]
-            counts = np.bincount(cell.ravel(), minlength=n)
-            if keyed and counts[colours] * 2 >= cell.size:
-                continue  # mostly background: leave transparent
-            counts[colours] = 0
-            out[j, i, :3] = pal[counts.argmax()]
-            out[j, i, 3] = 255
-    if keyed:
-        # Edge cells can pick up a purple blend of outline and background;
-        # nothing in the art is purple, so repaint those as outline.
-        r, g, b = (out[..., i].astype(int) for i in range(3))
-        fringe = (out[..., 3] > 0) & (r > g + 25) & (b > g + 25)
-        out[fringe, :3] = OUTLINE
-    return out
-
-
-def crop_to_content(rgb, box=None):
-    if box:
-        x0, y0, x1, y1 = box
-        rgb = rgb[y0:y1, x0:x1]
-    ys, xs = np.where(~magenta_mask(rgb))
-    return rgb[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
-
-
-def fit(rgb, max_w, max_h):
-    h, w = rgb.shape[:2]
-    s = min(max_w / w, max_h / h)
-    return max(1, round(w * s)), max(1, round(h * s))
-
-
-def place(sprite, frame_w, frame_h):
-    """Centre horizontally, sit on the bottom edge of a frame."""
-    frame = np.zeros((frame_h, frame_w, 4), dtype=np.uint8)
-    h, w = sprite.shape[:2]
-    x = (frame_w - w) // 2
-    frame[frame_h - h :, x : x + w] = sprite
-    return frame
 
 
 def load(name):
@@ -105,6 +59,110 @@ def save(arr, name):
     Image.fromarray(arr).save(OUT / name, optimize=True)
     print(f"{name:16s} {arr.shape[1]}x{arr.shape[0]}  {(OUT / name).stat().st_size} bytes")
 
+
+def grid_phase(edges, pitch):
+    """Offset of the grid lines: where the colour changes line up best."""
+    best, phase = -1, 0.0
+    for ph in np.arange(0, pitch, 0.05):
+        idx = np.round(np.arange(ph, len(edges) - 1, pitch)).astype(int)
+        score = edges[idx[idx < len(edges)]].mean()
+        if score > best:
+            best, phase = score, ph
+    return phase
+
+
+@lru_cache(maxsize=None)
+def native(name):
+    """The whole sheet at one pixel per art pixel, as RGBA (magenta made transparent).
+
+    Also returns the grid (pitch, x offset, y offset) so source boxes can be mapped."""
+    cells, colours = GRIDS[name]
+    src = load(name)
+    h, w = src.shape[:2]
+    pitch = w / cells
+    lum = src.astype(float).sum(axis=2)
+    ox = grid_phase(np.abs(np.diff(lum, axis=1)).sum(axis=0), pitch) - pitch
+    oy = grid_phase(np.abs(np.diff(lum, axis=0)).sum(axis=1), pitch) - pitch
+    nx, ny = int((w - ox) // pitch), int((h - oy) // pitch)
+
+    # sample a small square from the centre of each art pixel, away from the
+    # blurred edges where neighbouring colours bleed into each other
+    r = max(1, int(pitch * 0.3))
+    cx = np.clip(np.round(ox + (np.arange(nx) + 0.5) * pitch).astype(int), r, w - r - 1)
+    cy = np.clip(np.round(oy + (np.arange(ny) + 0.5) * pitch).astype(int), r, h - r - 1)
+    offs = np.arange(-r, r + 1)
+    ys = (cy[:, None] + offs[None, :])[:, None, :, None]
+    xs = (cx[:, None] + offs[None, :])[None, :, None, :]
+    patch = src[ys, xs]  # ny, nx, k, k, 3
+    rgb = np.median(patch.reshape(ny, nx, -1, 3), axis=2).astype(np.uint8)
+    keyed = magenta_mask(patch.reshape(ny, nx, -1, 3)).mean(axis=2) > 0.5
+
+    rgb = reduce_palette(rgb, ~keyed, colours)
+    out = np.dstack([rgb, np.where(keyed, 0, 255).astype(np.uint8)])
+    out[keyed, :3] = 0
+    clean(out)
+    return out, (pitch, ox, oy)
+
+
+def reduce_palette(rgb, solid, colours):
+    """Merge the slightly different shades JPEG leaves behind into one palette."""
+    pixels = rgb[solid].reshape(1, -1, 3)
+    q = Image.fromarray(pixels).quantize(colours, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    pal = np.array(q.getpalette()[: colours * 3], dtype=np.uint8).reshape(-1, 3)
+    out = rgb.copy()
+    out[solid] = pal[np.array(q)[0]]
+    return out
+
+
+def clean(img):
+    """Tidy edges and specks, in place."""
+    alpha = img[..., 3] > 0
+    # Edge pixels can come out as a purple blend of outline and magenta; nothing
+    # in the art is purple, so repaint those as outline.
+    r, g, b = (img[..., i].astype(int) for i in range(3))
+    img[alpha & (r > g + 25) & (b > g + 25), :3] = OUTLINE
+
+    # Lone opaque pixels with no opaque neighbour on any side are noise.
+    n4 = ndimage.convolve(alpha.astype(int), np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]]), mode="constant")
+    img[alpha & (n4 == 0)] = 0
+
+    # A pixel that matches none of its eight neighbours but is very close to one
+    # of them is a compression speck: give it that neighbour's colour.
+    h, w = alpha.shape
+    rgb = img[..., :3].astype(int)
+    alpha = img[..., 3] > 0
+    for y in range(1, h - 1):
+        for x in range(1, w - 1):
+            if not alpha[y, x]:
+                continue
+            c = rgb[y, x]
+            nb = [rgb[y + dy, x + dx] for dy in (-1, 0, 1) for dx in (-1, 0, 1)
+                  if (dy or dx) and alpha[y + dy, x + dx]]
+            if not nb or any((n == c).all() for n in nb):
+                continue
+            d = [np.abs(n - c).sum() for n in nb]
+            if min(d) < 40:
+                img[y, x, :3] = nb[int(np.argmin(d))]
+
+
+def sprite(name, box):
+    """Cut a sprite from a sheet by its box in source-picture pixels, trimmed to its content."""
+    img, (pitch, ox, oy) = native(name)
+    x0, y0, x1, y1 = box
+    i0, i1 = int(np.floor((x0 - ox) / pitch)), int(np.ceil((x1 - ox) / pitch))
+    j0, j1 = int(np.floor((y0 - oy) / pitch)), int(np.ceil((y1 - oy) / pitch))
+    part = img[max(j0, 0) : j1, max(i0, 0) : i1]
+    ys, xs = np.where(part[..., 3] > 0)
+    return part[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].copy()
+
+
+def place(spr, frame_w, frame_h):
+    """Centre horizontally, sit on the bottom edge of a frame."""
+    frame = np.zeros((frame_h, frame_w, 4), dtype=np.uint8)
+    h, w = spr.shape[:2]
+    x = (frame_w - w) // 2
+    frame[frame_h - h :, x : x + w] = spr
+    return frame
 
 
 def pack_atlas(sprites, name, width=512):
@@ -129,24 +187,8 @@ def pack_atlas(sprites, name, width=512):
     (OUT / f"{name}.json").write_text(json.dumps({"frames": frames}, separators=(",", ":")))
 
 
-def cut(src, box, out_h, colours=24, out_w=None):
-    """Crop a box to its content and shrink it to out_h pixels tall."""
-    item = crop_to_content(src, box)
-    h, w = item.shape[:2]
-    w_out = out_w or max(1, round(w * out_h / h))
-    return mode_downscale(item, w_out, out_h, colours)
-
-
-# --- the first lab building (kept as the sprite key "building") ---------------
-def building():
-    src = crop_to_content(load("building.jpg"))
-    w, h = fit(src, 128, 128)
-    save(place(mode_downscale(src, w, h, 24), 128, 128), "building.png")
-
-
 # --- the ten themed buildings -------------------------------------------------
-# name: (x0, y0, x1, y1) in the source sheet. One scale for all, so they keep
-# their relative sizes; the tallest comes out 128 pixels high.
+# name: (x0, y0, x1, y1) in the source picture.
 BUILDINGS = {
     "battery_lab": (40, 30, 555, 625),
     "pcm_lab": (582, 30, 1049, 625),
@@ -159,43 +201,36 @@ BUILDINGS = {
     "library": (1580, 825, 2037, 1398),
     "home_base": (2068, 825, 2537, 1398),
 }
-BUILDING_SCALE = 128 / 581
 
 
 def buildings():
-    src = load("buildings.jpg")
-    sprites = {}
-    for name, box in BUILDINGS.items():
-        item = crop_to_content(src, box)
-        h, w = item.shape[:2]
-        sprites[name] = mode_downscale(item, round(w * BUILDING_SCALE), round(h * BUILDING_SCALE), 32)
-    pack_atlas(sprites, "buildings")
+    pack_atlas({name: sprite("buildings.jpg", box) for name, box in BUILDINGS.items()}, "buildings")
 
 
 # --- props --------------------------------------------------------------------
-# Rows of the source sheet: (top, bottom, [(name, x0, x1, height in game pixels)]).
+# Rows of the source picture: (top, bottom, [(name, x0, x1)]).
 PROP_ROWS = [
-    (0, 258, [("turbine_small", 78, 241, 44), ("turbine_large", 340, 545, 96), ("solar_panel", 641, 886, 28),
-              ("solar_stand", 948, 1097, 28), ("battery", 1167, 1382, 20), ("pylon", 1479, 1635, 72),
-              ("charger", 1736, 1935, 34), ("transformer", 2009, 2219, 30)]),
-    (261, 462, [("h2_cylinder", 100, 212, 24), ("gauge", 370, 530, 20), ("pipe_straight", 636, 910, 14),
-                ("pipe_corner", 1034, 1221, 20), ("valve", 1334, 1570, 18), ("fan", 1678, 1887, 24),
-                ("coil", 1988, 2242, 22), ("barrel", 2330, 2480, 24)]),
-    (470, 656, [("thermometer", 110, 215, 22), ("beaker", 375, 522, 18), ("test_tubes", 647, 899, 16),
-                ("oscilloscope", 1012, 1232, 18), ("laptop", 1344, 1564, 16), ("whiteboard", 1677, 1890, 28),
-                ("microscope", 2026, 2166, 22), ("toolbox", 2311, 2498, 14)]),
-    (657, 903, [("pine", 50, 260, 64), ("bush", 319, 572, 20), ("flowers", 605, 866, 14), ("rock", 909, 1131, 16),
-                ("grass", 1188, 1424, 12), ("fence", 1468, 1742, 16), ("lamp", 1816, 1951, 48),
-                ("bench", 2020, 2283, 16)]),
-    (670, 897, [("signpost", 2325, 2519, 24)]),
-    (905, 1184, [("catwalk", 1140, 1436, 20), ("platform_wood", 1516, 1800, 20), ("ladder", 1924, 2087, 40)]),
-    (898, 1184, [("crates", 2230, 2508, 30)]),
-    (1210, 1420, [("bulb", 56, 204, 16), ("orb", 250, 399, 16), ("star", 457, 599, 16), ("scroll", 662, 813, 16),
-                  ("key", 883, 1022, 16), ("flag", 1097, 1264, 16), ("van", 1361, 1666, 38),
-                  ("bicycle", 1677, 1939, 24), ("forklift", 1949, 2230, 36), ("cart", 2235, 2549, 32)]),
+    (0, 258, [("turbine_small", 78, 241), ("turbine_large", 340, 545), ("solar_panel", 641, 886),
+              ("solar_stand", 948, 1097), ("battery", 1167, 1382), ("pylon", 1479, 1635),
+              ("charger", 1736, 1935), ("transformer", 2009, 2219)]),
+    (261, 462, [("h2_cylinder", 100, 212), ("gauge", 370, 530), ("pipe_straight", 636, 910),
+                ("pipe_corner", 1034, 1221), ("valve", 1334, 1570), ("fan", 1678, 1887),
+                ("coil", 1988, 2242), ("barrel", 2330, 2480)]),
+    (470, 656, [("thermometer", 110, 215), ("beaker", 375, 522), ("test_tubes", 647, 899),
+                ("oscilloscope", 1012, 1232), ("laptop", 1344, 1564), ("whiteboard", 1677, 1890),
+                ("microscope", 2026, 2166), ("toolbox", 2311, 2498)]),
+    (657, 903, [("pine", 50, 260), ("bush", 319, 572), ("flowers", 605, 866), ("rock", 909, 1131),
+                ("grass", 1188, 1424), ("fence", 1468, 1742), ("lamp", 1816, 1951),
+                ("bench", 2020, 2283)]),
+    (670, 897, [("signpost", 2325, 2519)]),
+    (905, 1184, [("catwalk", 1140, 1436), ("platform_wood", 1516, 1800), ("ladder", 1924, 2087)]),
+    (898, 1184, [("crates", 2230, 2508)]),
+    (1210, 1420, [("bulb", 56, 204), ("orb", 250, 399), ("star", 457, 599), ("scroll", 662, 813),
+                  ("key", 883, 1022), ("flag", 1097, 1264), ("van", 1361, 1666),
+                  ("bicycle", 1677, 1939), ("forklift", 1949, 2230), ("cart", 2235, 2549)]),
 ]
 # Ground tiles: (name, box). The outline is trimmed off and each is mirrored
-# into a 64x64 block so it repeats without a visible seam.
+# so it repeats without a visible seam.
 TILES = {
     "tile_grass": (58, 917, 328, 1176),
     "tile_dirt": (429, 928, 688, 1176),
@@ -204,15 +239,13 @@ TILES = {
 
 
 def props():
-    src = load("props.jpg")
     sprites = {}
     for top, bottom, items in PROP_ROWS:
-        for name, x0, x1, height in items:
-            sprites[name] = cut(src, (x0, top, x1, bottom), height)
+        for name, x0, x1 in items:
+            sprites[name] = sprite("props.jpg", (x0, top, x1, bottom))
     # The lamp was drawn with a glow around it. The game adds its own glow at
     # night, so remove the drawn one: keep the post's own column, then eat away
     # any orange that is open to the outside (the lantern glass is enclosed).
-    from scipy import ndimage
     lamp = sprites["lamp"]
     mid = lamp.shape[1] // 2
     lamp = lamp[:, mid - 6 : mid + 6].copy()
@@ -227,16 +260,15 @@ def props():
     ys, xs = np.where(lamp[..., 3] > 0)
     sprites["lamp"] = lamp[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
 
-    for name, (x0, y0, x1, y1) in TILES.items():
-        inner = src[y0 + 14 : y1 - 14, x0 + 14 : x1 - 14]
-        t = mode_downscale(inner, 32, 32, 16, keyed=False)
-        top_row = np.concatenate([t, t[:, ::-1]], axis=1)
-        # grass has a top and a bottom, so only mirror it sideways
-        sprites[name] = top_row if name == "tile_grass" else np.concatenate([top_row, top_row[::-1]], axis=0)
+    for name, box in TILES.items():
+        t = sprite("props.jpg", box)[3:-3, 3:-3]  # trim the outline
+        # mirror sideways only: the ground strip is shorter than one tile, so it never repeats downwards
+        sprites[name] = np.concatenate([t, t[:, ::-1]], axis=1)
     pack_atlas(sprites, "props")
-    icon = place(sprites["battery"], 32, 32)
-    icon = np.roll(icon, -6, axis=0)
-    Image.fromarray(icon).resize((64, 64), Image.NEAREST).save(ROOT / "public" / "favicon.png", optimize=True)
+    bat = sprites["battery"]
+    side = max(bat.shape[:2]) + 2
+    icon = np.roll(place(bat, side, side), -((side - bat.shape[0]) // 2), axis=0)
+    Image.fromarray(icon).resize((side * 2, side * 2), Image.NEAREST).save(ROOT / "public" / "favicon.png", optimize=True)
 
 
 # --- characters ---------------------------------------------------------------
@@ -258,30 +290,28 @@ CHARACTER_BOXES = [
 # Frame numbers in character.png (mirrored in src/config.js).
 CHARACTER_FRAMES = ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "jump_up", "jump_down",
                     "vest", "hoodie", "npc_scientist", "npc_technician", "npc_delivery"]
-CHARACTER_SCALE = 32 / 409  # the standing figure is 409 source pixels tall
+FRAME = 48
 
 
 def character():
-    src = load("characters.jpg")
     cells = {}
     for name, box in CHARACTER_BOXES:
-        item = crop_to_content(src, box)
-        h, w = item.shape[:2]
-        spr = mode_downscale(item, round(w * CHARACTER_SCALE), min(32, round(h * CHARACTER_SCALE)), 24)
+        spr = sprite("characters.jpg", box)
         # line frames up on the head, not the outline, so coat tails and held
         # tools do not make the body wobble between frames
         head = spr[: spr.shape[0] // 3, :, 3] > 0
         cx = int(round(np.where(head.any(axis=0))[0].mean()))
-        frame = np.zeros((32, 32, 4), dtype=np.uint8)
-        x = int(np.clip(16 - cx, 0, 32 - spr.shape[1]))
-        frame[32 - spr.shape[0] :, x : x + spr.shape[1]] = spr
+        frame = np.zeros((FRAME, FRAME, 4), dtype=np.uint8)
+        x = int(np.clip(FRAME // 2 - cx, 0, FRAME - spr.shape[1]))
+        frame[FRAME - spr.shape[0] :, x : x + spr.shape[1]] = spr
         cells[name] = frame
 
     # a second idle frame: everything above the legs sinks one pixel (breathing)
     idle0 = cells["coat"]
+    height = int((idle0[..., 3] > 0).any(axis=1).sum())
+    legs = round(height * 0.28)
     idle1 = idle0.copy()
-    legs = 9
-    idle1[1 : 32 - legs] = idle0[: 32 - legs - 1]
+    idle1[1 : FRAME - legs] = idle0[: FRAME - legs - 1]
     idle1[0] = 0
     cells["idle0"], cells["idle1"] = idle0, idle1
 
@@ -289,7 +319,7 @@ def character():
 
 
 # --- background ---------------------------------------------------------------
-SKY_ROWS = 66  # the flat horizon line in the 270-row picture
+SKY_ROWS = 66  # the flat horizon line in the background picture
 
 # Daylight colours for the night-time layers, picked by brightness: (position 0-1, colour).
 # The hills use two ramps, hazy blue for the far ridges at the top of the picture
@@ -318,7 +348,10 @@ def gradient_map(rgba, stops):
 def background():
     from scipy import ndimage
 
-    full = mode_downscale(load("background.jpg"), 480, 270, 40, keyed=False)
+    full, _ = native("background.jpg")
+    full = full.copy()
+    if full.shape[0] < 270:  # the picture is 268 art pixels tall: repeat the bottom row
+        full = np.concatenate([full, np.repeat(full[-1:], 270 - full.shape[0], axis=0)], axis=0)
 
     # Mirror-tile so the left and right edges always match when it repeats.
     # The turbines cut off by the picture's edges are trimmed away first, or
@@ -385,7 +418,6 @@ def background():
 
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
-    building()
     buildings()
     props()
     character()

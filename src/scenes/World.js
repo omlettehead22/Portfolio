@@ -155,7 +155,7 @@ export default class World extends Phaser.Scene {
       if (item.glow) {
         this.glows.push(
           this.add
-            .image(item.x, WORLD.groundY - img.height + 12, "glow")
+            .image(item.x, WORLD.groundY - img.height + 7, "glow")
             .setBlendMode(Phaser.BlendModes.ADD)
             .setTint(0xffb45c)
             .setDepth(DEPTH.glow)
@@ -185,6 +185,8 @@ export default class World extends Phaser.Scene {
       });
 
       // A floating marker shows it can be entered: a lightbulb, then a star once visited.
+      // Buildings still waiting for their project have none.
+      if (project.draft) return { project, sprite, marker: null };
       const marker = this.add
         .image(project.x, WORLD.groundY - sprite.height - 4, "props", visited.has(project.id) ? "star" : "bulb")
         .setOrigin(0.5, 1)
@@ -210,8 +212,9 @@ export default class World extends Phaser.Scene {
     const saved = store.get(STORAGE.position, WORLD.startX);
     const x = Phaser.Math.Clamp(Number(saved) || WORLD.startX, 16, WORLD.width - 16);
 
-    const player = this.physics.add.sprite(x, WORLD.groundY - 16, "character", 0).setDepth(DEPTH.player);
-    player.body.setSize(10, 30).setOffset(11, 2);
+    // 48x48 frames with the feet on the bottom row; the body is the figure, not the frame
+    const player = this.physics.add.sprite(x, WORLD.groundY - 24, "character", 0).setDepth(DEPTH.player);
+    player.body.setSize(12, 36).setOffset(18, 12);
     player.body.setMaxVelocity(T.speed, T.maxFall);
     player.setCollideWorldBounds(true);
     player.play("idle");
@@ -268,7 +271,7 @@ export default class World extends Phaser.Scene {
 
   openProject(project) {
     this.savePosition();
-    this.buildings.find((b) => b.project === project)?.marker.setFrame("star");
+    this.buildings.find((b) => b.project === project)?.marker?.setFrame("star");
     this.game.events.emit("open-project", project);
   }
 

@@ -63,9 +63,11 @@ const openModal = setupModal({
     ui.modal = true;
     touch.release();
     play("open");
-    visited.add(project.id);
-    store.set(STORAGE.visited, [...visited]);
-    drawVisited();
+    if (!project.draft) {
+      visited.add(project.id);
+      store.set(STORAGE.visited, [...visited]);
+      drawVisited();
+    }
   },
   onClose() {
     ui.modal = false;
@@ -89,7 +91,7 @@ function buildMinimap() {
   const track = minimap.querySelector(".mm-track");
   for (const p of projects) {
     const dot = document.createElement("span");
-    dot.className = "mm-building";
+    dot.className = p.draft ? "mm-building draft" : "mm-building";
     dot.dataset.id = p.id;
     dot.style.left = `${(p.x / WORLD.width) * 100}%`;
     track.append(dot);
@@ -102,8 +104,9 @@ function drawVisited() {
   for (const dot of minimap.querySelectorAll(".mm-building")) {
     dot.classList.toggle("visited", visited.has(dot.dataset.id));
   }
-  const seen = projects.filter((p) => visited.has(p.id)).length;
-  mmCount.textContent = projects.length ? `${seen}/${projects.length} visited` : "";
+  const ready = projects.filter((p) => !p.draft);
+  const seen = ready.filter((p) => visited.has(p.id)).length;
+  mmCount.textContent = ready.length ? `${seen}/${ready.length} visited` : "";
 }
 
 // --- intro -------------------------------------------------------------------
@@ -162,7 +165,7 @@ async function boot() {
     const show = hud.near && !isFrozen();
     prompt.hidden = !show;
     if (show) {
-      if (hud.near !== lastNear) promptTitle.textContent = `· ${hud.near.title}`;
+      if (hud.near !== lastNear) promptTitle.textContent = `· ${hud.near.draft ? "Coming soon" : hud.near.title}`;
       const half = prompt.offsetWidth / 2 + 4;
       const max = game.scale.width * zoom;
       const x = Math.min(Math.max(hud.x * zoom, half), max - half);

@@ -11,7 +11,7 @@ A side-scrolling pixel-art portfolio: the visitor walks along a night-time stree
 
 ## Where things live
 
-- `public/projects.json`: all project content and building positions. The game, the project window and the list page all read this one file. A project's `sprite` is a building name from `public/assets/buildings.json`.
+- `public/projects.json`: all project content and building positions. The game, the project window and the list page all read this one file. A project's `sprite` is a building name from `public/assets/buildings.json`. Entries with `"draft": true` are buildings still waiting for a project: shown as "Coming soon", left off the list page.
 - `src/config.js`: movement tuning, world size, parallax speeds, the day/night timetable, street scenery and NPCs.
 - `src/scenes/`: Phaser scenes. `Boot` → `Preload` (loads assets, reports progress) → `World` (the street).
 - `src/daynight.js`: works out the light for the visitor's local time. `?time=day|dusk|night|dawn|cycle|<hour>` overrides it.
@@ -29,4 +29,5 @@ A side-scrolling pixel-art portfolio: the visitor walks along a night-time stree
 - Never invent results or figures. Unknown results are written as `TODO: add result`.
 - The project window and the list page are plain HTML, not Phaser objects, and must stay keyboard-accessible.
 - Art is drawn on a 480x270 grid. Keep `pixelArt` rendering and whole-number scaling.
+- Sprites are read from the source art at one pixel per art pixel (`tools/process_assets.py`, `GRIDS`). Never resize them to a chosen size: that is what makes pixel art look jagged.
 - Test in a browser before committing: desktop, 360px and 768px wide, by day and by night (`?time=day`, `?time=night`).

@@ -5,7 +5,18 @@
 
 const $ = (id) => document.getElementById(id);
 
+// Shown for a building that does not have its project yet.
+const DRAFT = {
+  title: "Coming soon",
+  summary: "This building is waiting for its project. Check back later.",
+  results: [],
+  tools: [],
+  links: [],
+};
+
 function fillList(ul, items, render) {
+  // hide the list and its heading when there is nothing to show
+  ul.hidden = ul.previousElementSibling.hidden = items.length === 0;
   ul.replaceChildren(
     ...items.map((item) => {
       const li = document.createElement("li");
@@ -32,9 +43,10 @@ export function setupModal({ onOpen, onClose }) {
   });
   dialog.addEventListener("close", onClose);
 
-  return function open(project) {
+  return function open(entry) {
     if (dialog.open) return;
     pressedBackdrop = false;
+    const project = entry.draft ? { ...DRAFT, id: entry.id } : entry;
     $("pm-title").textContent = project.title;
     $("pm-summary").textContent = project.summary;
     fillList($("pm-results"), project.results, (text) => text);
@@ -49,6 +61,6 @@ export function setupModal({ onOpen, onClose }) {
     });
     dialog.showModal();
     dialog.querySelector(".card").scrollTop = 0;
-    onOpen(project);
+    onOpen(entry);
   };
 }

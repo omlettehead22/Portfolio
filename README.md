@@ -26,9 +26,11 @@ npm run build    # production build in dist/
 
 ## Change the content
 
-Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, where its building stands (`x`, in pixels along a 1440-pixel street) and which building it uses (`sprite`). Add an entry and a building appears; the list page updates too.
+Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, where its building stands (`x`, in pixels along a 2400-pixel street) and which building it uses (`sprite`). Add an entry and a building appears; the list page updates too.
 
-Buildings available: `battery_lab`, `pcm_lab`, `hydrogen_plant`, `cold_station`, `sim_centre`, `control_room`, `wind_solar_hub`, `workshop`, `library`, `home_base`.
+Buildings available: `battery_lab`, `pcm_lab`, `hydrogen_plant`, `cold_station`, `sim_centre`, `control_room`, `wind_solar_hub`, `workshop`, `library`, and `home_base` (the welcome hall at the start).
+
+A building waiting for its project is an entry with only `id`, `x`, `sprite` and `"draft": true`. It stands on the street and opens a "Coming soon" window, but is left off the list page and the visited count. To give it a project, add the other fields and delete `"draft": true`.
 
 Movement (speed, acceleration, friction, jump), the day/night timetable and the street scenery are in [`src/config.js`](src/config.js).
 
@@ -38,7 +40,7 @@ The street follows your own clock: sun by day, moon, stars and lit lamp posts by
 
 ## Art
 
-The art briefs are in [`public/assets/assets.md`](public/assets/assets.md) and the original renders in `art-src/`. `npm run assets` turns them into the sprites the game loads: it removes the magenta background, shrinks each picture to its pixel grid, packs buildings and props into sprite atlases, cuts the background into parallax layers and makes a daylight version of each.
+The art briefs are in [`public/assets/assets.md`](public/assets/assets.md) and the original renders in `art-src/`. `npm run assets` turns them into the sprites the game loads. Each source picture is pixel art on a regular grid, so the script finds that grid and reads back one colour per art pixel, with no resizing. It then removes the magenta background, merges the shades left by JPEG compression, packs buildings and props into sprite atlases, cuts the background into parallax layers and makes a daylight version of each.
 
 ## Built with
 

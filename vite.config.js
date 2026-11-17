@@ -21,6 +21,7 @@ function projectsHtml() {
       handler(html) {
         const { site, projects } = JSON.parse(readFileSync(dataFile, "utf8"));
         const articles = projects
+          .filter((p) => !p.draft) // buildings still waiting for a project are left off the list
           .map(
             (p) => `
       <article id="${esc(p.id)}">
