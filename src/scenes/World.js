@@ -1,5 +1,8 @@
 import Phaser from "phaser";
-import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE } from "../config.js";
+import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE, BUILDING_SCALE, GROUND_SCALE } from "../config.js";
+
+// Where the "Press E" marker floats: just above head height, in front of the door.
+const MARKER_BOTTOM = WORLD.groundY - 46;
 import { controls, isFrozen, store } from "../state.js";
 import { currentHour, isCycling, lightAt, mix } from "../daynight.js";
 import { play } from "../audio.js";
@@ -129,7 +132,11 @@ export default class World extends Phaser.Scene {
   addGround() {
     const h = VIEW.height - WORLD.groundY;
     this.lit.push(
-      this.add.tileSprite(0, WORLD.groundY, WORLD.width, h, "props", "tile_stone").setOrigin(0).setDepth(DEPTH.ground)
+      this.add
+        .tileSprite(0, WORLD.groundY, WORLD.width, h, "props", "tile_stone")
+        .setTileScale(GROUND_SCALE)
+        .setOrigin(0)
+        .setDepth(DEPTH.ground)
     );
     this.ground = this.add.zone(WORLD.width / 2, WORLD.groundY + h / 2, WORLD.width, h);
     this.physics.add.existing(this.ground, true);
@@ -141,12 +148,15 @@ export default class World extends Phaser.Scene {
       const atlas = item.atlas ?? "props";
       if (!this.textures.get(atlas).has(item.sprite)) continue;
       const depth = item.back ? DEPTH.back : atlas === "buildings" ? DEPTH.building : DEPTH.prop;
-      const img = this.add.image(item.x, WORLD.groundY, atlas, item.sprite).setOrigin(0.5, 1).setDepth(depth);
+      const scale = item.scale ?? 1;
+      const img = this.add.image(item.x, WORLD.groundY, atlas, item.sprite).setOrigin(0.5, 1).setScale(scale).setDepth(depth);
       this.lit.push(img);
 
       if (item.platform) {
         // Solid only from above: you can land on it, but walk and jump through it.
-        const zone = this.add.zone(item.x, WORLD.groundY - img.height / 2, img.width - 6, img.height - 2);
+        const w = img.displayWidth;
+        const h = img.displayHeight;
+        const zone = this.add.zone(item.x, WORLD.groundY - h / 2, w - 6, h - 2);
         this.physics.add.existing(zone, true);
         const c = zone.body.checkCollision;
         c.down = c.left = c.right = false;
@@ -155,7 +165,8 @@ export default class World extends Phaser.Scene {
       if (item.glow) {
         this.glows.push(
           this.add
-            .image(item.x, WORLD.groundY - img.height + 7, "glow")
+            .image(item.x, WORLD.groundY - img.displayHeight + 7 * scale, "glow")
+            .setScale(scale)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setTint(0xffb45c)
             .setDepth(DEPTH.glow)
@@ -174,7 +185,7 @@ export default class World extends Phaser.Scene {
       if (atlas.has(project.sprite)) sprite = this.add.image(project.x, WORLD.groundY, "buildings", project.sprite);
       else if (this.textures.exists(project.sprite)) sprite = this.add.image(project.x, WORLD.groundY, project.sprite);
       else sprite = this.add.image(project.x, WORLD.groundY, "buildings", "battery_lab");
-      sprite.setOrigin(0.5, 1).setDepth(DEPTH.building);
+      sprite.setOrigin(0.5, 1).setScale(BUILDING_SCALE).setDepth(DEPTH.building);
       this.lit.push(sprite);
 
       // Clicking or tapping a building opens it, wherever the player is standing.
@@ -188,7 +199,7 @@ export default class World extends Phaser.Scene {
       // Buildings still waiting for their project have none.
       if (project.draft) return { project, sprite, marker: null };
       const marker = this.add
-        .image(project.x, WORLD.groundY - sprite.height - 4, "props", visited.has(project.id) ? "star" : "bulb")
+        .image(project.x, MARKER_BOTTOM, "props", visited.has(project.id) ? "star" : "bulb")
         .setOrigin(0.5, 1)
         .setDepth(DEPTH.glow);
       if (!this.calm) {
@@ -401,7 +412,7 @@ export default class World extends Phaser.Scene {
     hud.near = near ? near.project : null;
     if (near) {
       hud.x = near.project.x - cam.scrollX;
-      hud.y = WORLD.groundY - near.sprite.height - 26;
+      hud.y = MARKER_BOTTOM - 34; // above the marker
     }
     hud.progress = this.player.x / WORLD.width;
     this.game.events.emit("hud", hud);

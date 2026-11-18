@@ -26,7 +26,7 @@ npm run build    # production build in dist/
 
 ## Change the content
 
-Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, where its building stands (`x`, in pixels along a 2400-pixel street) and which building it uses (`sprite`). Add an entry and a building appears; the list page updates too.
+Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, where its building stands (`x`, in pixels along a 3240-pixel street; buildings sit 320 apart) and which building it uses (`sprite`). Add an entry and a building appears; the list page updates too.
 
 Buildings available: `battery_lab`, `pcm_lab`, `hydrogen_plant`, `cold_station`, `sim_centre`, `control_room`, `wind_solar_hub`, `workshop`, `library`, and `home_base` (the welcome hall at the start).
 

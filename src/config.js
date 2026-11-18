@@ -3,8 +3,8 @@
 // --- Player feel -------------------------------------------------------------
 // Speeds are pixels per second, accelerations pixels per second squared.
 export const TUNING = {
-  speed: 120,          // top walking speed
-  acceleration: 900,   // how quickly the player gets up to speed (higher = snappier)
+  speed: 140,          // top walking speed
+  acceleration: 1050,  // how quickly the player gets up to speed (higher = snappier)
   friction: 1100,      // how quickly the player stops after letting go (lower = more slide)
   turnBoost: 1.8,      // extra push when reversing direction, so turning does not feel sluggish
   airControl: 0.55,    // share of acceleration and friction available in mid-air (0 = none, 1 = same as ground)
@@ -17,7 +17,7 @@ export const TUNING = {
   coyoteMs: 90,        // you can still jump this long after walking off an edge
   jumpBufferMs: 110,   // a jump pressed this long before landing still counts
 
-  interactRange: 56,   // how close (in pixels) you must be to a building for "Press E"
+  interactRange: 70,   // how close (in pixels) to a building's middle you must be for "Press E"
 };
 
 // --- Screen and world --------------------------------------------------------
@@ -28,9 +28,9 @@ export const VIEW = {
 };
 
 export const WORLD = {
-  width: 2400,  // five 480-pixel screens
+  width: 3240,  // nine buildings 320 pixels apart, about seven screens
   groundY: 238, // y of the surface the player walks on
-  startX: 150,  // where a first-time visitor appears (outside the welcome hall)
+  startX: 240,  // where a first-time visitor appears (outside the welcome hall)
   skyRows: 66,  // height of the sky above the horizon line in the background art
 };
 
@@ -62,60 +62,65 @@ export const HORIZON = { night: 0x2a4e61, day: 0x7bacd3 };
 export const CYCLE_SECONDS = 60; // length of a whole day with ?time=cycle
 
 // --- Scenery -----------------------------------------------------------------
+// One scale for the whole street, set by the people: the character is 38 pixels
+// tall (about 1.75 m, so roughly 22 pixels to the metre).
+//
+// The character sheet is drawn with art pixels twice the size of the building
+// and prop sheets. Buildings are therefore drawn at twice their size: their
+// doors then come out a little taller than a person, and their pixels match the
+// characters'. Props are drawn at 1x or 2x, whichever is closer to real life.
+// Only whole-number scales are used, so every art pixel stays square and sharp.
+export const BUILDING_SCALE = 2;
+export const GROUND_SCALE = 2; // the paving, drawn at the same pixel size as the buildings
+
 // Things standing on the street. `sprite` is a name from the props atlas
 // (public/assets/props.json) or, with atlas: "buildings", from the buildings atlas.
+//   scale: 2       drawn at twice its size (whole numbers only)
 //   back: true     drawn behind the buildings
 //   platform: true the player can jump up and stand on it (but walks past it freely)
 //   glow: true     lights up at night
+// Buildings stand every 320 pixels from x = 480; each gap holds a small scene.
 export const SCENERY = [
   // the welcome hall where you start
-  { x: 60, sprite: "home_base", atlas: "buildings" },
-  { x: 14, sprite: "pine", back: true },
-  { x: 200, sprite: "lamp", glow: true },
-  { x: 245, sprite: "bush" },
-  // between PackTherm (330) and Agile Flex (560)
-  { x: 435, sprite: "bench", platform: true },
-  { x: 488, sprite: "crates", platform: true },
-  // between Agile Flex (560) and 790
-  { x: 625, sprite: "charger" },
-  { x: 690, sprite: "van", platform: true },
-  { x: 742, sprite: "lamp", glow: true },
-  // 790 to 1030
-  { x: 880, sprite: "turbine_large", back: true },
-  { x: 915, sprite: "barrel" },
-  { x: 950, sprite: "h2_cylinder" },
-  { x: 980, sprite: "pine", back: true },
-  // 1030 to 1270
-  { x: 1128, sprite: "lamp", glow: true },
-  { x: 1150, sprite: "pylon", back: true },
-  { x: 1195, sprite: "transformer" },
-  // 1270 to 1510
-  { x: 1345, sprite: "solar_panel" },
-  { x: 1395, sprite: "forklift", platform: true },
-  { x: 1455, sprite: "lamp", glow: true },
-  // 1510 to 1750
-  { x: 1590, sprite: "pine", back: true },
-  { x: 1630, sprite: "flowers" },
-  { x: 1680, sprite: "bench", platform: true },
-  // 1750 to 1990
-  { x: 1820, sprite: "lamp", glow: true },
-  { x: 1870, sprite: "toolbox" },
-  { x: 1925, sprite: "cart", platform: true },
-  // 1990 to 2230
-  { x: 2075, sprite: "bicycle" },
-  { x: 2125, sprite: "lamp", glow: true },
-  { x: 2165, sprite: "rock" },
+  { x: 110, sprite: "home_base", atlas: "buildings", scale: 2 },
+  { x: 205, sprite: "lamp", scale: 2, glow: true },
+  { x: 285, sprite: "bush" },
+  { x: 345, sprite: "pine", scale: 2, back: true },
+  // PackTherm (480) to Agile Flex (800): crates waiting outside the lab
+  { x: 610, sprite: "crates", platform: true },
+  { x: 695, sprite: "lamp", scale: 2, glow: true },
+  // Agile Flex to 1120: a van on charge
+  { x: 906, sprite: "charger", platform: true }, // a step up onto the van
+  { x: 980, sprite: "van", scale: 2, platform: true },
+  // 1120 to 1440: a small turbine on the lawn
+  { x: 1240, sprite: "turbine_small", scale: 2, back: true },
+  { x: 1290, sprite: "lamp", scale: 2, glow: true },
+  { x: 1325, sprite: "bush" },
+  // 1440 to 1760: substation by the hydrogen plant
+  { x: 1630, sprite: "transformer", scale: 2 },
+  // 1760 to 2080: hydrogen storage and a forklift
+  { x: 1870, sprite: "h2_cylinder", scale: 2 },
+  { x: 1915, sprite: "lamp", scale: 2, glow: true },
+  { x: 1955, sprite: "forklift", scale: 2 },
+  // 2080 to 2400: a quiet corner
+  { x: 2215, sprite: "pine", scale: 2, back: true },
+  { x: 2285, sprite: "fence" },
+  // 2400 to 2720: solar array outside the simulation centre
+  { x: 2540, sprite: "solar_panel", scale: 2 },
+  { x: 2605, sprite: "lamp", scale: 2, glow: true },
+  // 2720 to 3040: parked outside the workshop
+  { x: 2850, sprite: "cart", platform: true },
+  { x: 2920, sprite: "bicycle" },
   // the end of the street
-  { x: 2310, sprite: "fence" },
-  { x: 2350, sprite: "turbine_large", back: true },
-  { x: 2385, sprite: "pine", back: true },
+  { x: 3150, sprite: "lamp", scale: 2, glow: true },
+  { x: 3200, sprite: "turbine_large", scale: 2, back: true },
 ];
 
 // People standing around. `frame` is a name from CHARACTER_FRAMES.
 export const NPCS = [
-  { x: 395, frame: "npc_scientist", faceLeft: true },
-  { x: 1095, frame: "npc_delivery" },
-  { x: 1605, frame: "npc_technician", faceLeft: true },
+  { x: 655, frame: "npc_scientist", faceLeft: true },
+  { x: 1560, frame: "npc_delivery" },
+  { x: 2250, frame: "npc_technician", faceLeft: true },
 ];
 
 // Order of the 48x48 frames in public/assets/character.png (written by tools/process_assets.py).

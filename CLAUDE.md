@@ -29,5 +29,6 @@ A side-scrolling pixel-art portfolio: the visitor walks along a night-time stree
 - Never invent results or figures. Unknown results are written as `TODO: add result`.
 - The project window and the list page are plain HTML, not Phaser objects, and must stay keyboard-accessible.
 - Art is drawn on a 480x270 grid. Keep `pixelArt` rendering and whole-number scaling.
-- Sprites are read from the source art at one pixel per art pixel (`tools/process_assets.py`, `GRIDS`). Never resize them to a chosen size: that is what makes pixel art look jagged.
+- Sprites are read from the source art at one pixel per art pixel (`tools/process_assets.py`, `GRIDS`). Never resize them to a chosen size: that is what makes pixel art look jagged. On screen, only whole-number scales (`scale: 2`).
+- One street scale, set by the 38-pixel character (about 22 pixels to the metre). The character sheet's art pixels are twice the size of the other sheets', so buildings and the paving draw at 2x (`BUILDING_SCALE`, `GROUND_SCALE`) and each prop at 1x or 2x, whichever is closer to its real size. Leave out props that fit neither.
 - Test in a browser before committing: desktop, 360px and 768px wide, by day and by night (`?time=day`, `?time=night`).
