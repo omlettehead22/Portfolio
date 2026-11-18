@@ -13,6 +13,9 @@ sheet and cleans up single stray pixels.
 Outputs:
   bg_hills.png, bg_city.png               night parallax layers cut from the background
   bg_hills_day.png, bg_city_day.png       the same layers recoloured for daylight
+  bg_city_lights.png, bg_hills_lights.png the lit windows, lifted out so the game can switch them
+                                          on and off (the layers above have them unlit)
+  bg_beacons.png                          the red aviation lights on the turbines
   moon.png                                the crescent moon lifted out of the sky
   buildings.png + buildings.json          atlas of the ten themed buildings
   props.png + props.json                  atlas of every prop, tile, collectible and vehicle
@@ -105,12 +108,22 @@ def native(name):
 
 
 def reduce_palette(rgb, solid, colours):
-    """Merge the slightly different shades JPEG leaves behind into one palette."""
-    pixels = rgb[solid].reshape(1, -1, 3)
-    q = Image.fromarray(pixels).quantize(colours, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
-    pal = np.array(q.getpalette()[: colours * 3], dtype=np.uint8).reshape(-1, 3)
+    """Merge the slightly different shades JPEG leaves behind into one palette.
+
+    Warm lights (lit windows, flames, lamp glass) are few pixels but matter a
+    lot, so they get a small palette of their own and are never merged into
+    the cool colours around them."""
+    r, g, b = (rgb[..., i].astype(int) for i in range(3))
+    warm = solid & (r > b + 60) & (r > 120)
     out = rgb.copy()
-    out[solid] = pal[np.array(q)[0]]
+    for part, n in ((solid & ~warm, colours), (warm, 8)):
+        if part.sum() < 2:
+            continue
+        pixels = rgb[part].reshape(1, -1, 3)
+        n = min(n, part.sum())
+        q = Image.fromarray(pixels).quantize(n, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+        pal = np.array(q.getpalette()[: n * 3], dtype=np.uint8).reshape(-1, 3)
+        out[part] = pal[np.array(q)[0]]
     return out
 
 
@@ -289,7 +302,8 @@ CHARACTER_BOXES = [
 ]
 # Frame numbers in character.png (mirrored in src/config.js).
 CHARACTER_FRAMES = ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "jump_up", "jump_down",
-                    "vest", "hoodie", "npc_scientist", "npc_technician", "npc_delivery"]
+                    "vest", "hoodie", "npc_scientist", "npc_technician", "npc_delivery",
+                    "npc_scientist_b", "npc_technician_b", "npc_delivery_b"]
 FRAME = 48
 
 
@@ -306,14 +320,18 @@ def character():
         frame[FRAME - spr.shape[0] :, x : x + spr.shape[1]] = spr
         cells[name] = frame
 
-    # a second idle frame: everything above the legs sinks one pixel (breathing)
-    idle0 = cells["coat"]
-    height = int((idle0[..., 3] > 0).any(axis=1).sum())
-    legs = round(height * 0.28)
-    idle1 = idle0.copy()
-    idle1[1 : FRAME - legs] = idle0[: FRAME - legs - 1]
-    idle1[0] = 0
-    cells["idle0"], cells["idle1"] = idle0, idle1
+    # second idle frames: everything above the legs sinks one pixel (breathing)
+    def breathe(frame):
+        height = int((frame[..., 3] > 0).any(axis=1).sum())
+        legs = round(height * 0.28)
+        out = frame.copy()
+        out[1 : FRAME - legs] = frame[: FRAME - legs - 1]
+        out[0] = 0
+        return out
+
+    cells["idle0"], cells["idle1"] = cells["coat"], breathe(cells["coat"])
+    for npc in ("npc_scientist", "npc_technician", "npc_delivery"):
+        cells[npc + "_b"] = breathe(cells[npc])
 
     save(np.concatenate([cells[n] for n in CHARACTER_FRAMES], axis=1), "character.png")
 
@@ -343,6 +361,33 @@ def gradient_map(rgba, stops):
         out[..., c] = np.interp(t, pos, [s[1][c] for s in stops]).round().astype(np.uint8)
     out[~solid] = 0
     return out
+
+
+def split_lights(layer, beacons=False):
+    """Remove warm lights from a layer (in place) and return them as overlays.
+
+    Each light is painted over with the most common colour around it, so the
+    layer underneath shows the window or nacelle switched off."""
+    rgb = layer[..., :3].astype(int)
+    warm = (layer[..., 3] > 0) & (rgb[..., 0] > rgb[..., 2] + 60) & (rgb[..., 0] > 120)
+    labels, n = ndimage.label(warm, np.ones((3, 3)))
+    lights = np.zeros_like(layer)
+    marks = np.zeros_like(layer)
+    near = ndimage.binary_dilation(warm, iterations=1) & ~warm
+    for i, sl in enumerate(ndimage.find_objects(labels), start=1):
+        blob = labels[sl] == i
+        # a beacon is 3+ pixels with no other light within 6 pixels
+        y0, y1 = max(sl[0].start - 6, 0), sl[0].stop + 6
+        x0, x1 = max(sl[1].start - 6, 0), sl[1].stop + 6
+        alone = (labels[y0:y1, x0:x1] > 0).sum() == blob.sum()
+        target = marks if beacons and blob.sum() >= 3 and alone else lights
+        target[sl][blob] = layer[sl][blob]
+        # unlit colour: the commonest non-light colour touching the blob
+        ring = ndimage.binary_dilation(labels == i, iterations=1) & near
+        cols, counts = np.unique(layer[ring][:, :3], axis=0, return_counts=True)
+        if len(cols):
+            layer[sl][blob, :3] = cols[counts.argmax()]
+    return lights, marks
 
 
 def background():
@@ -400,6 +445,15 @@ def background():
         px = hills[max(top - 1, 0), x, :3]
         # darker than the hill means a turbine tower: carry it down; otherwise flat hill
         hills[top:, x, :3] = px if int(px.sum()) < int(hill.sum()) - 10 else hill
+
+    # Lift the lights out of both layers: the game draws them on top and
+    # switches them on and off. Turbine aviation lights are the larger blobs
+    # standing apart from everything else; the rest are windows.
+    hills_lights, beacons = split_lights(hills, beacons=True)
+    city_lights, _ = split_lights(city)
+    save(tile(hills_lights), "bg_hills_lights.png")
+    save(tile(beacons), "bg_beacons.png")
+    save(tile(city_lights), "bg_city_lights.png")
 
     save(tile(hills), "bg_hills.png")
     save(tile(city), "bg_city.png")

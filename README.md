@@ -38,6 +38,10 @@ Movement (speed, acceleration, friction, jump), the day/night timetable and the 
 
 The street follows your own clock: sun by day, moon, stars and lit lamp posts by night, with dawn and dusk in between. To see another time, add `?time=night` (or `dawn`, `day`, `dusk`, an hour such as `21.5`, or `cycle` for a whole day in a minute) to the address.
 
+## A living street
+
+Clouds drift and birds cross the sky by day. At night the city windows switch on and off one at a time (fewer of them lit in the small hours), the wind turbines' red aviation lights blink together, shooting stars and a plane's lights cross now and then, street lamps flicker, and the hydrogen plant's flare burns with smoke rising from it. The people on the street breathe and turn to look at you as you pass. All of it holds still for visitors who have "reduce motion" turned on, and stops while the game is paused. The settings are under "Ambient life" in [`src/config.js`](src/config.js).
+
 ## Art
 
 The art briefs are in [`public/assets/assets.md`](public/assets/assets.md) and the original renders in `art-src/`. `npm run assets` turns them into the sprites the game loads. Each source picture is pixel art on a regular grid, so the script finds that grid and reads back one colour per art pixel, with no resizing. It then removes the magenta background, merges the shades left by JPEG compression, packs buildings and props into sprite atlases, cuts the background into parallax layers and makes a daylight version of each.

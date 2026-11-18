@@ -6,6 +6,7 @@ const MARKER_BOTTOM = WORLD.groundY - 46;
 import { controls, isFrozen, store } from "../state.js";
 import { currentHour, isCycling, lightAt, mix } from "../daynight.js";
 import { play } from "../audio.js";
+import Ambient from "./ambient.js";
 
 const DEPTH = { sky: 0, stars: 1, sun: 1.5, hills: 2, city: 3, back: 4, ground: 5, building: 6, prop: 7, glow: 8, npc: 9, player: 10 };
 
@@ -22,12 +23,13 @@ export default class World extends Phaser.Scene {
     this.near = null;
     this.hud = { near: null, x: 0, y: 0, progress: 0 };
     this.lit = [];   // everything that takes the colour of the daylight
-    this.glows = []; // lamp glows, brightest at night
 
     this.physics.world.setBounds(0, 0, WORLD.width, VIEW.height);
     this.physics.world.gravity.y = T.gravity;
 
     this.addSky();
+    this.ambient = new Ambient(this, { calm: this.calm });
+    this.ambient.create();
     this.addGround();
     this.addScenery();
     this.addBuildings();
@@ -122,7 +124,7 @@ export default class World extends Phaser.Scene {
     place(this.moon, L.moon);
 
     for (const obj of this.lit) obj.setTint(L.light);
-    for (const glow of this.glows) glow.setAlpha(L.glow);
+    this.ambient.setLight(L);
     this.dust?.setParticleTint(L.light);
     this.game.events.emit("light", L);
   }
@@ -163,7 +165,7 @@ export default class World extends Phaser.Scene {
         this.platforms.push(zone);
       }
       if (item.glow) {
-        this.glows.push(
+        this.ambient.addLamp(
           this.add
             .image(item.x, WORLD.groundY - img.displayHeight + 7 * scale, "glow")
             .setScale(scale)
@@ -172,6 +174,7 @@ export default class World extends Phaser.Scene {
             .setDepth(DEPTH.glow)
         );
       }
+      if (atlas === "buildings") this.ambient.addFixtures(item.sprite, item.x, scale);
     }
   }
 
@@ -186,6 +189,7 @@ export default class World extends Phaser.Scene {
       else if (this.textures.exists(project.sprite)) sprite = this.add.image(project.x, WORLD.groundY, project.sprite);
       else sprite = this.add.image(project.x, WORLD.groundY, "buildings", "battery_lab");
       sprite.setOrigin(0.5, 1).setScale(BUILDING_SCALE).setDepth(DEPTH.building);
+      this.ambient.addFixtures(sprite.frame.name, project.x, BUILDING_SCALE);
       this.lit.push(sprite);
 
       // Clicking or tapping a building opens it, wherever the player is standing.
@@ -210,12 +214,29 @@ export default class World extends Phaser.Scene {
   }
 
   addPeople() {
+    this.npcs = [];
     for (const npc of NPCS) {
       const frame = CHARACTER_FRAMES[npc.frame];
       if (frame === undefined) continue;
-      this.lit.push(
-        this.add.image(npc.x, WORLD.groundY, "character", frame).setOrigin(0.5, 1).setFlipX(!!npc.faceLeft).setDepth(DEPTH.npc)
-      );
+      const sprite = this.add
+        .sprite(npc.x, WORLD.groundY, "character", frame)
+        .setOrigin(0.5, 1)
+        .setFlipX(!!npc.faceLeft)
+        .setDepth(DEPTH.npc);
+      // breathe, each on their own rhythm
+      if (!this.calm && this.anims.exists(npc.frame)) {
+        sprite.play({ key: npc.frame, startFrame: Phaser.Math.Between(0, 1), delay: Phaser.Math.Between(0, 900) });
+      }
+      this.lit.push(sprite);
+      this.npcs.push({ sprite, faceLeft: !!npc.faceLeft });
+    }
+  }
+
+  // People turn to look at you as you walk past.
+  watchPlayer() {
+    for (const npc of this.npcs) {
+      const d = this.player.x - npc.sprite.x;
+      npc.sprite.setFlipX(Math.abs(d) < 90 ? d < 0 : npc.faceLeft);
     }
   }
 
@@ -298,6 +319,7 @@ export default class World extends Phaser.Scene {
       this.anims.pauseAll();
       this.tweens.pauseAll();
       this.dust.pause();
+      this.ambient.setFrozen(true);
       // let Space and the arrow keys reach the page (scrolling, buttons) while a menu is open
       this.input.keyboard.disableGlobalCapture();
     } else {
@@ -308,12 +330,13 @@ export default class World extends Phaser.Scene {
       this.anims.resumeAll();
       this.tweens.resumeAll();
       this.dust.resume();
+      this.ambient.setFrozen(false);
     }
   }
 
   // --- every frame -----------------------------------------------------------
 
-  update(time) {
+  update(time, delta) {
     const frozen = isFrozen();
     if (frozen !== this.frozen) this.setFrozen(frozen);
 
@@ -321,8 +344,12 @@ export default class World extends Phaser.Scene {
     for (const l of this.hills) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.hills);
     for (const l of this.city) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.city);
     if (isCycling() && !frozen) this.refreshLight();
+    this.ambient.update(time, delta);
 
-    if (!frozen) this.movePlayer(time);
+    if (!frozen) {
+      this.movePlayer(time);
+      this.watchPlayer();
+    }
     this.updateHud(cam);
   }
 

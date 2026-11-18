@@ -1,0 +1,387 @@
+import Phaser from "phaser";
+import { VIEW, WORLD, PARALLAX, AMBIENT as A, WINDOW_LIGHTS, FIXTURES } from "../config.js";
+import { currentHour, mix } from "../daynight.js";
+
+// Everything that moves on its own: clouds, birds, shooting stars, a plane,
+// city windows switching on and off, blinking turbine lights, breathing street
+// lamps, and the hydrogen flare with its smoke.
+//
+// None of it uses new art: the lights are lifted out of the background picture
+// by tools/process_assets.py, and the clouds and birds are drawn in code.
+// With "reduce motion" switched on in the system settings, the scene is lit
+// the same way but holds still.
+
+const DEPTH = { meteor: 1.2, clouds: 1.7, birds: 1.8, hillsLights: 2.2, cityLights: 3.2, fixture: 8 };
+const between = ([lo, hi]) => Phaser.Math.Between(lo * 1000, hi * 1000);
+
+export default class Ambient {
+  constructor(scene, { calm }) {
+    this.scene = scene;
+    this.calm = calm;
+    this.frozen = false;
+    this.clock = 0; // milliseconds of unpaused time, so a pause stops the clouds too
+    this.light = null;
+    this.lamps = []; // { glow, phase, dip }
+    this.fixtures = []; // building lights: { glow }
+    this.flares = []; // { glow, smoke }
+  }
+
+  create() {
+    this.addClouds();
+    this.addLights();
+    this.meteor = this.scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.meteor);
+    this.plane = this.scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.meteor);
+    this.birds = [];
+    this.flock = null;
+    this.shooting = null;
+    this.flight = null;
+
+    if (this.calm) return;
+    const t = this.scene.time;
+    t.addEvent({ delay: A.windowFlickerMs, loop: true, callback: this.flickerWindow, callbackScope: this });
+    this.schedule("launchFlock", A.birdsEverySec, 4000);
+    this.schedule("launchMeteor", A.shootingStarEverySec, 3000);
+    this.schedule("launchPlane", A.planeEverySec, 9000);
+    this.schedule("lampFlicker", A.lampFlickerEverySec);
+  }
+
+  // Call `method` again and again at random intervals; the first one can come sooner.
+  schedule(method, range, first) {
+    const run = () => {
+      if (!this.frozen) this[method]();
+      this.scene.time.delayedCall(between(range), run);
+    };
+    this.scene.time.delayedCall(first ?? between(range), run);
+  }
+
+  setFrozen(frozen) {
+    this.frozen = frozen;
+    for (const f of this.flares) frozen ? f.smoke.pause() : f.smoke.resume();
+  }
+
+  // --- clouds ------------------------------------------------------------------
+
+  addClouds() {
+    const rnd = new Phaser.Math.RandomDataGenerator(["clouds"]);
+    this.wrap = VIEW.maxWidth + 120;
+    this.clouds = [];
+    for (let i = 0; i < A.clouds; i++) {
+      const sprite = this.scene.add
+        .image(0, 0, `cloud${i % 3}`)
+        .setOrigin(0.5, 1)
+        .setScrollFactor(0)
+        .setDepth(DEPTH.clouds);
+      this.clouds.push({
+        sprite,
+        x: (i + rnd.frac() * 0.6) * (this.wrap / A.clouds),
+        y: rnd.between(16, WORLD.skyRows + 4),
+        speed: A.wind * rnd.realInRange(0.5, 1.3),
+      });
+    }
+  }
+
+  moveClouds(time) {
+    const scroll = this.scene.cameras.main.scrollX * 0.06;
+    for (const c of this.clouds) {
+      const drift = this.calm ? 0 : (time / 1000) * c.speed;
+      const x = Phaser.Math.Wrap(c.x + drift - scroll, 0, this.wrap) - 60;
+      c.sprite.setPosition(Math.round(x), c.y);
+    }
+  }
+
+  // --- lights in the background ------------------------------------------------
+
+  addLights() {
+    // Window layers become canvases, so single windows can be switched.
+    this.windows = [];
+    const rows = VIEW.height - WORLD.skyRows;
+    const layer = (key, depth, factor) => {
+      const sprite = this.scene.add
+        .tileSprite(0, WORLD.skyRows, VIEW.maxWidth, rows, key)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(depth);
+      sprite.parallax = factor;
+      return sprite;
+    };
+    for (const [key, depth, factor] of [
+      ["bg_hills_lights", DEPTH.hillsLights, PARALLAX.hills],
+      ["bg_city_lights", DEPTH.cityLights, PARALLAX.city],
+    ]) {
+      const live = this.makeLiveWindows(key);
+      this.windows.push({ ...live, sprite: layer(live.key, depth, factor) });
+    }
+    this.beacons = layer("bg_beacons", DEPTH.hillsLights, PARALLAX.hills).setTint(0xff6a55);
+  }
+
+  makeLiveWindows(key) {
+    const src = this.scene.textures.get(key).getSourceImage();
+    const tex = this.scene.textures.createCanvas(`${key}_live`, src.width, src.height);
+    const ctx = tex.getContext();
+    ctx.drawImage(src, 0, 0);
+    const image = ctx.getImageData(0, 0, src.width, src.height);
+    const { data, width, height } = image;
+
+    // group touching lit pixels into windows
+    const seen = new Uint8Array(width * height);
+    const groups = [];
+    for (let start = 0; start < width * height; start++) {
+      if (seen[start] || data[start * 4 + 3] === 0) continue;
+      const pixels = [];
+      const stack = [start];
+      seen[start] = 1;
+      while (stack.length) {
+        const p = stack.pop();
+        pixels.push(p);
+        const x = p % width;
+        const y = (p - x) / width;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+            const q = ny * width + nx;
+            if (!seen[q] && data[q * 4 + 3] > 0) {
+              seen[q] = 1;
+              stack.push(q);
+            }
+          }
+        }
+      }
+      groups.push({ pixels, on: true });
+    }
+
+    const share = windowShare(currentHour());
+    for (const g of groups) this.setWindow(data, g, Math.random() < share);
+    ctx.putImageData(image, 0, 0);
+    tex.refresh();
+    return { key: `${key}_live`, tex, ctx, image, groups };
+  }
+
+  setWindow(data, group, on) {
+    group.on = on;
+    for (const p of group.pixels) data[p * 4 + 3] = on ? 255 : 0;
+  }
+
+  flickerWindow() {
+    if (this.frozen || !this.light || this.light.night < 0.05) return;
+    const share = windowShare(currentHour());
+    const w = Phaser.Utils.Array.GetRandom(this.windows);
+    const group = Phaser.Utils.Array.GetRandom(w.groups);
+    const on = Math.random() < share;
+    if (on === group.on) return;
+    this.setWindow(w.image.data, group, on);
+    w.ctx.putImageData(w.image, 0, 0);
+    w.tex.refresh();
+  }
+
+  // --- lights on the street ----------------------------------------------------
+
+  addLamp(glow) {
+    this.lamps.push({ glow, phase: Math.random() * Math.PI * 2, dip: 0 });
+  }
+
+  // Lights drawn into a building or scenery sprite (see FIXTURES in config.js).
+  addFixtures(name, x, scale) {
+    const fx = FIXTURES[name];
+    if (!fx) return;
+    const at = ([dx, dy]) => [x + dx * scale, WORLD.groundY + dy * scale];
+    for (const p of fx.lights ?? []) {
+      const [gx, gy] = at(p);
+      const glow = this.scene.add
+        .image(gx, gy, "glow_small")
+        .setScale(scale)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0xffb45c)
+        .setDepth(DEPTH.fixture);
+      this.fixtures.push({ glow });
+    }
+    if (fx.flare) {
+      const [fx0, fy0] = at(fx.flare);
+      const glow = this.scene.add
+        .image(fx0, fy0 + 4, "glow")
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setTint(0xff8a3c)
+        .setDepth(DEPTH.fixture);
+      const smoke = this.scene.add
+        .particles(fx0, fy0 - 6, "dust", {
+          speedX: { min: A.wind * 1.5, max: A.wind * 3 },
+          speedY: { min: -16, max: -9 },
+          lifespan: { min: 2600, max: 3800 },
+          scale: { start: 1.5, end: 3.5 },
+          alpha: { start: 0.6, end: 0 },
+          frequency: 200,
+          tint: 0xaab4bc,
+          emitting: !this.calm,
+        })
+        .setDepth(DEPTH.fixture - 0.5);
+      this.flares.push({ glow, smoke });
+    }
+  }
+
+  lampFlicker() {
+    if (!this.light || this.light.glow < 0.3 || !this.lamps.length) return;
+    // one lamp stutters: dims and recovers in a few quick steps
+    Phaser.Utils.Array.GetRandom(this.lamps).dip = 1;
+  }
+
+  // --- things that cross the sky -------------------------------------------------
+
+  launchFlock() {
+    if (!this.light || this.light.night > 0.5 || this.flock) return;
+    const count = Phaser.Math.Between(3, 5);
+    const y = Phaser.Math.Between(14, 48);
+    const fromLeft = Math.random() < 0.5;
+    const width = this.scene.scale.width;
+    this.flock = {
+      vx: (fromLeft ? 1 : -1) * Phaser.Math.Between(20, 30),
+      birds: Array.from({ length: count }, (_, i) => {
+        const back = Math.ceil(i / 2) * 7; // a loose V
+        const side = i === 0 ? 0 : i % 2 ? -1 : 1;
+        const sprite = this.scene.add.image(0, 0, "bird0").setScrollFactor(0).setDepth(DEPTH.birds);
+        return {
+          sprite,
+          x: fromLeft ? -10 - back : width + 10 + back,
+          y: y + side * Math.ceil(i / 2) * 4,
+          flap: Math.random() * 300,
+          bob: Math.random() * Math.PI * 2,
+        };
+      }),
+    };
+  }
+
+  launchMeteor() {
+    if (!this.light || this.light.stars < 0.6 || this.shooting) return;
+    const width = this.scene.scale.width;
+    this.shooting = {
+      x: Phaser.Math.Between(Math.round(width * 0.3), width),
+      y: Phaser.Math.Between(4, 26),
+      age: 0,
+    };
+  }
+
+  launchPlane() {
+    if (!this.light || this.light.stars < 0.5 || this.flight) return;
+    const width = this.scene.scale.width;
+    const fromRight = Math.random() < 0.5;
+    this.flight = { x: fromRight ? width + 4 : -4, y: Phaser.Math.Between(8, 22), vx: fromRight ? -9 : 9, age: 0 };
+  }
+
+  // --- each frame ------------------------------------------------------------------
+
+  setLight(L) {
+    this.light = L;
+    const cloudTint = mix(L.light, 0x2c3858, L.night);
+    for (const c of this.clouds) c.sprite.setTint(cloudTint).setAlpha(1 - L.night * 0.55);
+    for (const w of this.windows) w.sprite.setAlpha(L.night);
+    for (const f of this.fixtures) f.glow.setAlpha(L.glow * 0.9);
+  }
+
+  update(time, delta) {
+    const cam = this.scene.cameras.main;
+    if (!this.frozen) this.clock += delta;
+    this.moveClouds(this.clock);
+    for (const w of this.windows) w.sprite.tilePositionX = Math.round(cam.scrollX * w.sprite.parallax);
+    this.beacons.tilePositionX = Math.round(cam.scrollX * PARALLAX.hills);
+    if (!this.light) return;
+
+    // turbine lights blink together, as real wind farms do
+    const blink = this.calm || time % A.beaconPeriodMs < A.beaconPeriodMs * 0.35;
+    this.beacons.setAlpha(this.light.night * (blink ? 1 : 0.12));
+
+    // street lamps breathe a little, and one now and then stutters
+    for (const lamp of this.lamps) {
+      let level = this.calm ? 1 : 0.9 + 0.1 * Math.sin(time / 700 + lamp.phase);
+      if (lamp.dip > 0 && !this.frozen) {
+        lamp.dip = Math.max(0, lamp.dip - delta / 450);
+        level *= [1, 0.35, 0.8, 0.25, 0.6][Math.floor(lamp.dip * 5) % 5];
+      }
+      lamp.glow.setAlpha(this.light.glow * level);
+    }
+
+    // the flare never goes out: bright at night, faint in daylight
+    for (const f of this.flares) {
+      const flicker = this.calm ? 1 : 0.8 + 0.2 * Math.random();
+      f.glow.setAlpha((0.35 + 0.65 * this.light.night) * (this.frozen ? 1 : flicker));
+      f.smoke.setParticleTint(mix(0x8d979f, 0x3a4458, this.light.night));
+    }
+
+    if (this.frozen) return;
+    const dt = delta / 1000;
+    this.updateFlock(time, dt);
+    this.updateMeteor(dt);
+    this.updatePlane(dt);
+  }
+
+  updateFlock(time, dt) {
+    if (!this.flock) return;
+    const width = this.scene.scale.width;
+    const tint = mix(0x2a3440, 0x10141c, this.light.night);
+    let gone = 0;
+    for (const b of this.flock.birds) {
+      b.x += this.flock.vx * dt;
+      const frame = Math.floor((time + b.flap) / 160) % 2;
+      b.sprite
+        .setTexture(`bird${frame}`)
+        .setTint(tint)
+        .setPosition(Math.round(b.x), Math.round(b.y + Math.sin(time / 500 + b.bob)));
+      if (b.x < -30 || b.x > width + 30) gone++;
+    }
+    if (gone === this.flock.birds.length) {
+      for (const b of this.flock.birds) b.sprite.destroy();
+      this.flock = null;
+    }
+  }
+
+  updateMeteor(dt) {
+    const g = this.meteor;
+    g.clear();
+    const m = this.shooting;
+    if (!m) return;
+    m.age += dt;
+    const life = 0.5;
+    if (m.age > life) {
+      this.shooting = null;
+      return;
+    }
+    // head plus a fading tail, on whole pixels
+    const speed = 240;
+    const hx = m.x - m.age * speed;
+    const hy = m.y + m.age * speed * 0.45;
+    const fade = 1 - m.age / life;
+    const tail = 14;
+    for (let i = 0; i < tail; i++) {
+      g.fillStyle(0xffffff, fade * (1 - i / tail));
+      g.fillRect(Math.round(hx + i), Math.round(hy - i * 0.45), 1, 1);
+    }
+  }
+
+  updatePlane(dt) {
+    const g = this.plane;
+    g.clear();
+    const p = this.flight;
+    if (!p) return;
+    p.age += dt;
+    p.x += p.vx * dt;
+    const width = this.scene.scale.width;
+    if (p.x < -10 || p.x > width + 10) {
+      this.flight = null;
+      return;
+    }
+    // red navigation light on a slow blink, white strobe in between
+    const t = p.age % 1.2;
+    const x = Math.round(p.x);
+    const y = Math.round(p.y);
+    g.fillStyle(0x6b7288, 0.6).fillRect(x, y, 1, 1);
+    if (t < 0.2) g.fillStyle(0xff5a4a).fillRect(x, y, 1, 1);
+    else if (t > 0.6 && t < 0.68) g.fillStyle(0xffffff).fillRect(x + (p.vx > 0 ? -1 : 1), y, 1, 1);
+  }
+}
+
+// Share of windows lit at this hour, from WINDOW_LIGHTS.
+function windowShare(hour) {
+  const i = WINDOW_LIGHTS.findIndex(([h]) => h > hour);
+  const [h0, a] = WINDOW_LIGHTS[Math.max(i - 1, 0)];
+  const [h1, b] = WINDOW_LIGHTS[Math.max(i, 1)];
+  return a + (b - a) * Phaser.Math.Clamp((hour - h0) / (h1 - h0), 0, 1);
+}

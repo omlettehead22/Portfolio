@@ -45,6 +45,9 @@ export default class Preload extends Phaser.Scene {
       repeat: -1,
     });
     this.anims.create({ key: "rise", frames: frames([F.jump_up]), frameRate: 1 });
+    for (const npc of ["npc_scientist", "npc_technician", "npc_delivery"]) {
+      this.anims.create({ key: npc, frames: frames([F[npc], F[`${npc}_b`]]), frameRate: 2, repeat: -1 });
+    }
     this.anims.create({ key: "fall", frames: frames([F.jump_down]), frameRate: 1 });
 
     this.scene.start("World");
@@ -67,9 +70,59 @@ export default class Preload extends Phaser.Scene {
     g.generateTexture("glow", 40, 40);
     g.clear();
 
-    // dust kicked up on landing
+    // a small warm glow for lights drawn into buildings (tinted in the scene)
+    for (const [radius, alpha] of [[8, 0.14], [5, 0.2], [3, 0.3]]) {
+      g.fillStyle(0xffffff, alpha).fillCircle(8, 8, radius);
+    }
+    g.generateTexture("glow_small", 16, 16);
+    g.clear();
+
+    // dust kicked up on landing, and smoke from the hydrogen flare
     g.fillStyle(0xffffff).fillRect(0, 0, 2, 2);
     g.generateTexture("dust", 2, 2);
     g.destroy();
+
+    this.makeClouds();
+    this.makeBirds();
+  }
+
+  // Clouds are built pixel by pixel from a few overlapping circles, so their
+  // edges are as crisp as the rest of the art: white on top, shaded underneath.
+  makeClouds() {
+    const shapes = [
+      [[10, 9, 6], [18, 6, 7], [27, 9, 6], [34, 11, 4]],
+      [[7, 7, 5], [14, 5, 5], [21, 7, 5]],
+      [[9, 10, 7], [19, 6, 8], [30, 8, 7], [40, 10, 6], [47, 12, 3]],
+    ];
+    shapes.forEach((circles, i) => {
+      const w = Math.max(...circles.map(([x, , r]) => x + r)) + 1;
+      const base = Math.max(...circles.map(([, y]) => y)) + 2; // flat bottom
+      const tex = this.textures.createCanvas(`cloud${i}`, w, base + 1);
+      const ctx = tex.getContext();
+      for (let y = 0; y <= base; y++) {
+        for (let x = 0; x < w; x++) {
+          const inside = circles.some(([cx, cy, r]) => (x - cx) ** 2 + (y - cy) ** 2 <= r * r);
+          if (!inside) continue;
+          ctx.fillStyle = y >= base - 2 ? "#c9d7e4" : y >= base - 4 ? "#e4edf4" : "#ffffff";
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+      tex.refresh();
+    });
+  }
+
+  // Two frames of a 5x3 bird: wings up, wings down.
+  makeBirds() {
+    const frames = [
+      ["X...X", ".X.X.", "..X.."],
+      [".....", "XXXXX", "..X.."],
+    ];
+    frames.forEach((rows, i) => {
+      const tex = this.textures.createCanvas(`bird${i}`, 5, 3);
+      const ctx = tex.getContext();
+      ctx.fillStyle = "#ffffff";
+      rows.forEach((row, y) => [...row].forEach((c, x) => c === "X" && ctx.fillRect(x, y, 1, 1)));
+      tex.refresh();
+    });
   }
 }

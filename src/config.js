@@ -61,6 +61,35 @@ export const SUN = { rise: 6, set: 19 }; // the moon is up for the rest of the d
 export const HORIZON = { night: 0x2a4e61, day: 0x7bacd3 };
 export const CYCLE_SECONDS = 60; // length of a whole day with ?time=cycle
 
+// --- Ambient life ------------------------------------------------------------
+// Share of city windows lit at each hour of the night (0-1), blended between
+// entries. Windows switch on and off one at a time, so the skyline is never still.
+export const WINDOW_LIGHTS = [
+  [0, 0.45], [3, 0.25], [6, 0.45], [8, 0.6], [17, 0.75], [20, 0.9], [23, 0.7], [24, 0.45],
+];
+
+export const AMBIENT = {
+  clouds: 5,              // clouds in the sky at once
+  wind: 4,                // cloud and smoke drift, pixels per second
+  windowFlickerMs: 350,   // how often one window changes
+  beaconPeriodMs: 2000,   // turbine aviation lights: one blink per period
+  birdsEverySec: [18, 40],         // a flock crosses the daytime sky this often (random in range)
+  shootingStarEverySec: [7, 20],   // at night
+  planeEverySec: [35, 70],         // a blinking plane light at night
+  lampFlickerEverySec: [6, 15],    // one street lamp stutters now and then
+};
+
+// Lights drawn into the building art that glow at night, in building pixels
+// from the bottom centre of the sprite (before BUILDING_SCALE).
+// `flare` is a gas flame that flickers day and night and gives off smoke.
+export const FIXTURES = {
+  battery_lab: { lights: [[10, -32]] },
+  hydrogen_plant: { flare: [23, -96] },
+  workshop: { lights: [[3, -52], [19, -8]] },
+  control_room: { lights: [[-33, -48], [0, -48]] },
+  home_base: { lights: [[-14, -23], [19, -23]] },
+};
+
 // --- Scenery -----------------------------------------------------------------
 // One scale for the whole street, set by the people: the character is 38 pixels
 // tall (about 1.75 m, so roughly 22 pixels to the metre).
@@ -130,6 +159,8 @@ export const CHARACTER_FRAMES = {
   jump_up: 6, jump_down: 7,
   vest: 8, hoodie: 9, // the same engineer in other outfits (standing pose only)
   npc_scientist: 10, npc_technician: 11, npc_delivery: 12,
+  // each NPC's breathing frame
+  npc_scientist_b: 13, npc_technician_b: 14, npc_delivery_b: 15,
 };
 
 // --- Assets ------------------------------------------------------------------
@@ -141,6 +172,9 @@ export const ASSETS = {
     bg_hills_day: "bg_hills_day.png",
     bg_city_day: "bg_city_day.png",
     moon: "moon.png",
+    bg_city_lights: "bg_city_lights.png",
+    bg_hills_lights: "bg_hills_lights.png",
+    bg_beacons: "bg_beacons.png",
   },
   sheets: {
     character: { file: "character.png", frameWidth: 48, frameHeight: 48 },
