@@ -77,6 +77,22 @@ export const AMBIENT = {
   shootingStarEverySec: [7, 20],   // at night
   planeEverySec: [35, 70],         // a blinking plane light at night
   lampFlickerEverySec: [6, 15],    // one street lamp stutters now and then
+  rotorFps: { large: 7, medium: 9, small: 11 }, // rotor frames per second: big rotors turn slower
+};
+
+// Where each building's door is, in building pixels from its centre (before
+// BUILDING_SCALE). The project marker floats over it and "Press E" is measured from it.
+export const DOORS = {
+  battery_lab: 9,
+  wind_solar_hub: -26,
+  pcm_lab: 18,
+  cold_station: -31,
+  hydrogen_plant: 16,
+  control_room: 14,
+  sim_centre: 8,
+  workshop: 2,
+  library: 0,
+  home_base: 1,
 };
 
 // Lights drawn into the building art that glow at night, in building pixels
@@ -106,7 +122,9 @@ export const GROUND_SCALE = 2; // the paving, drawn at the same pixel size as th
 // (public/assets/props.json) or, with atlas: "buildings", from the buildings atlas.
 //   scale: 2       drawn at twice its size (whole numbers only)
 //   back: true     drawn behind the buildings
-//   platform: true the player can jump up and stand on it (but walks past it freely)
+//   platform: true the player can jump up and stand on it (but walks past it freely);
+//                  or a list of [left, top, width] surfaces in sprite pixels, for shapes like a stack
+//   turbine: size  a wind turbine from turbines.png ("small", "medium", "large") with a turning rotor
 //   glow: true     lights up at night
 // Buildings stand every 320 pixels from x = 480; each gap holds a small scene.
 export const SCENERY = [
@@ -116,13 +134,13 @@ export const SCENERY = [
   { x: 285, sprite: "bush" },
   { x: 345, sprite: "pine", scale: 2, back: true },
   // PackTherm (480) to Agile Flex (800): crates waiting outside the lab
-  { x: 610, sprite: "crates", platform: true },
+  { x: 610, sprite: "crates", platform: [[0, 28, 43], [10, 0, 23]] }, // two crates, one on top
   { x: 695, sprite: "lamp", scale: 2, glow: true },
   // Agile Flex to 1120: a van on charge
   { x: 906, sprite: "charger", platform: true }, // a step up onto the van
   { x: 980, sprite: "van", scale: 2, platform: true },
   // 1120 to 1440: a small turbine on the lawn
-  { x: 1240, sprite: "turbine_small", scale: 2, back: true },
+  { x: 1240, turbine: "small", scale: 2, back: true },
   { x: 1290, sprite: "lamp", scale: 2, glow: true },
   { x: 1325, sprite: "bush" },
   // 1440 to 1760: substation by the hydrogen plant
@@ -142,7 +160,7 @@ export const SCENERY = [
   { x: 2920, sprite: "bicycle" },
   // the end of the street
   { x: 3150, sprite: "lamp", scale: 2, glow: true },
-  { x: 3200, sprite: "turbine_large", scale: 2, back: true },
+  { x: 3200, turbine: "small", scale: 2, back: true },
 ];
 
 // People standing around. `frame` is a name from CHARACTER_FRAMES.
@@ -176,12 +194,16 @@ export const ASSETS = {
     bg_hills_lights: "bg_hills_lights.png",
     bg_beacons: "bg_beacons.png",
   },
+  json: {
+    turbine_rig: "turbine_rig.json", // rotor and light positions, written by tools/process_assets.py
+  },
   sheets: {
     character: { file: "character.png", frameWidth: 48, frameHeight: 48 },
   },
   atlases: {
     buildings: { image: "buildings.png", data: "buildings.json" },
     props: { image: "props.png", data: "props.json" },
+    turbines: { image: "turbines.png", data: "turbines.json" },
   },
 };
 

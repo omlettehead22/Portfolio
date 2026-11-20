@@ -15,12 +15,20 @@ Outputs:
   bg_hills_day.png, bg_city_day.png       the same layers recoloured for daylight
   bg_city_lights.png, bg_hills_lights.png the lit windows, lifted out so the game can switch them
                                           on and off (the layers above have them unlit)
-  bg_beacons.png                          the red aviation lights on the turbines
+  turbines.png + turbines.json            towers and rotor frames for the wind turbines in the
+                                          hills, each with a daylight version
+  turbine_rig.json                        where each rotor and red light sits on its tower,
+                                          and where the painted rotors were in the hills
+  bg_beacons.png                          the red aviation lights on the painted turbines
   moon.png                                the crescent moon lifted out of the sky
   buildings.png + buildings.json          atlas of the ten themed buildings
   props.png + props.json                  atlas of every prop, tile, collectible and vehicle
   character.png                           48x48 frames, see CHARACTER_FRAMES
   ../favicon.png                          the battery prop, doubled
+
+props.png also gets two things built from the art: "crates", a stack rebuilt from
+one crate so all three rest flat, and "tile_street", the paving, drawn in the
+stone tile's colours as a regular running bond so it repeats without a seam.
 
 The atlases are in Phaser's JSON format: each sprite is looked up by name.
 art-src/building.jpg (the first concept building) is no longer used.
@@ -45,6 +53,7 @@ GRIDS = {
     "props.jpg": (480, 64),
     "background.jpg": (480, 40),
     "characters.jpg": (240, 40),
+    "turbines.png": (256, 24),
 }
 
 
@@ -251,6 +260,74 @@ TILES = {
 }
 
 
+def crate_stack(source):
+    """The drawn stack has its right crate floating a few pixels up. Rebuild it
+    from the top crate (the only one drawn whole): two on the ground, one on top."""
+    crate = source[0:29, 13:35]  # the top crate, lid and outline included
+    ch, cw = crate.shape[:2]
+    h, w = ch * 2 - 1, cw * 2 - 1  # neighbours share their outline
+    stack = np.zeros((h, w, 4), dtype=np.uint8)
+
+    def put(x, y):
+        solid = crate[..., 3] > 0
+        stack[y : y + ch, x : x + cw][solid] = crate[solid]
+
+    put(0, h - ch)
+    put(cw - 1, h - ch)
+    put((w - cw) // 2, 0)
+    return stack
+
+
+def paving(stone_tile):
+    """A seamless street surface in the stone tile's own colours: a kerb on top,
+    then rows of rectangular setts in a running bond, 64 art pixels wide."""
+    def by_lum(cols):
+        return sorted(cols, key=lambda c: int(c[0]) * 3 + int(c[1]) * 6 + int(c[2]))
+
+    cols, counts = np.unique(stone_tile[..., :3].reshape(-1, 3), axis=0, return_counts=True)
+    common = by_lum([c for c, n in zip(cols, counts) if n >= 100])
+    deep = by_lum([c for c, n in zip(cols, counts) if n >= 10])[0]
+    mortar, shadow, stone, light = common[0], common[1], common[-2], common[-1]
+    stone_b = (stone.astype(int) * 0.92).astype(np.uint8)  # a second stone shade for variety
+
+    width, height = 64, 18
+    tile = np.zeros((height, width, 4), dtype=np.uint8)
+    tile[..., 3] = 255
+    tile[..., :3] = mortar
+    tile[0, :, :3] = light  # kerb
+    tile[1, :, :3] = stone
+    tile[2, :, :3] = shadow
+    tile[3, :, :3] = deep
+
+    rnd = np.random.default_rng(7)
+    row_top, row_h = 4, 5
+    offset = 0
+    while row_top < height:
+        # stone widths 9-13 that add up to exactly the tile width
+        widths = []
+        while sum(widths) < width - 13:
+            widths.append(int(rnd.integers(9, 14)))
+        widths.append(width - sum(widths))
+        x = offset
+        for w in widths:
+            shade = stone if rnd.random() < 0.7 else stone_b
+            for dx in range(w - 1):  # the last column is the mortar joint
+                cx = (x + dx) % width
+                for dy in range(row_h):
+                    y = row_top + dy
+                    if y >= height:
+                        continue
+                    corner = dx in (0, w - 2) and dy in (0, row_h - 1)
+                    if corner:
+                        continue  # rounded corners
+                    c = light if dy == 0 else shadow if dy == row_h - 1 else shade
+                    tile[y, cx, :3] = c
+            x += w
+        row_top += row_h + 1
+        offset += widths[0] // 2 + 3
+    return tile
+
+
 def props():
     sprites = {}
     for top, bottom, items in PROP_ROWS:
@@ -273,15 +350,127 @@ def props():
     ys, xs = np.where(lamp[..., 3] > 0)
     sprites["lamp"] = lamp[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
 
+    sprites["crates"] = crate_stack(sprites["crates"])
+
     for name, box in TILES.items():
         t = sprite("props.jpg", box)[3:-3, 3:-3]  # trim the outline
         # mirror sideways only: the ground strip is shorter than one tile, so it never repeats downwards
         sprites[name] = np.concatenate([t, t[:, ::-1]], axis=1)
+    sprites["tile_street"] = paving(sprites["tile_stone"])
     pack_atlas(sprites, "props")
     bat = sprites["battery"]
     side = max(bat.shape[:2]) + 2
     icon = np.roll(place(bat, side, side), -((side - bat.shape[0]) // 2), axis=0)
     Image.fromarray(icon).resize((side * 2, side * 2), Image.NEAREST).save(ROOT / "public" / "favicon.png", optimize=True)
+
+
+# --- wind turbines -----------------------------------------------------------------
+# name: (box of the tower, box of the rotor) in the source picture.
+TURBINE_PARTS = {
+    "large": ((60, 100, 175, 500), (185, 140, 450, 372)),
+    "medium": ((486, 180, 578, 468), (595, 212, 762, 364)),
+    "small": ((806, 244, 874, 396), (886, 252, 986, 348)),
+}
+ROTOR_FRAMES = 12  # the rotor looks the same every 120 degrees, so 12 frames is 10 degrees each
+DAY_TURBINE = [(0.0, (92, 108, 122)), (0.35, (168, 182, 192)), (0.7, (222, 230, 236)), (1.0, (250, 252, 252))]
+
+
+def scale2x(img):
+    """EPX/Scale2x: double a pixel-art image, keeping diagonal lines clean."""
+    h, w = img.shape[:2]
+    p = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode="edge")
+    c = p[1:-1, 1:-1]
+    a, b, d, e = p[:-2, 1:-1], p[1:-1, 2:], p[1:-1, :-2], p[2:, 1:-1]  # up, right, left, down
+    eq = lambda x, y: (x == y).all(axis=2)
+    out = np.zeros((h * 2, w * 2, img.shape[2]), dtype=img.dtype)
+    cond = ~eq(a, e) & ~eq(d, b)
+    out[0::2, 0::2] = np.where((cond & eq(d, a))[..., None], a, c)
+    out[0::2, 1::2] = np.where((cond & eq(a, b))[..., None], b, c)
+    out[1::2, 0::2] = np.where((cond & eq(e, d))[..., None], d, c)
+    out[1::2, 1::2] = np.where((cond & eq(b, e))[..., None], e, c)
+    return out
+
+
+def rotate_pixel_art(img, angle, centre):
+    """Rotate pixel art without blurring it (the RotSprite method): enlarge 8x
+    with Scale2x, rotate with nearest-neighbour sampling, then shrink back by
+    taking the commonest colour in each 8x8 block."""
+    big = scale2x(scale2x(scale2x(img)))
+    k = 8
+    cx, cy = (centre[0] + 0.5) * k, (centre[1] + 0.5) * k
+    rot = np.array(Image.fromarray(big).rotate(angle, resample=Image.NEAREST, center=(cx, cy)))
+    h, w = img.shape[:2]
+    blocks = rot.reshape(h, k, w, k, 4).transpose(0, 2, 1, 3, 4).reshape(h, w, k * k, 4)
+    out = np.zeros((h, w, 4), dtype=np.uint8)
+    for y in range(h):
+        for x in range(w):
+            cell = blocks[y, x]
+            solid = cell[cell[:, 3] > 0]
+            if len(solid) * 2 < k * k:
+                continue
+            cols, counts = np.unique(solid[:, :3], axis=0, return_counts=True)
+            out[y, x, :3] = cols[counts.argmax()]
+            out[y, x, 3] = 255
+    return out
+
+
+def turbines():
+    frames = {}
+    rig = {}
+    for size, (tower_box, rotor_box) in TURBINE_PARTS.items():
+        tower = sprite("turbines.png", tower_box)
+        rotor = sprite("turbines.png", rotor_box)
+
+        # Red lights drawn on the nacelle: note where, then paint them over in
+        # the nacelle colour (the game draws its own, blinking).
+        r, g, b = (tower[..., i].astype(int) for i in range(3))
+        warm = (tower[..., 3] > 0) & (r > b + 60) & (r > 120)
+        lab, nb = ndimage.label(warm, np.ones((3, 3)))
+        beacons = [(int(round(np.where(lab == i)[1].mean())), int(round(np.where(lab == i)[0].mean())))
+                   for i in range(1, nb + 1)]
+        if warm.any():
+            nacelle = np.unique(tower[: 12][(tower[:12, :, 3] > 0) & ~warm[:12]][:, :3], axis=0, return_counts=True)
+            tower[warm, :3] = nacelle[0][nacelle[1].argmax()]
+        th, tw = tower.shape[:2]
+        solid = tower[..., 3] > 0
+        top_rows = solid[: max(4, th // 12)]
+        top = int(np.where(solid.any(axis=1))[0][0])
+        nose_x = int(np.where(top_rows.any(axis=0))[0].max())
+        rows = np.where(solid[:, nose_x])[0]
+        nose_y = int(rows[rows < th // 6].mean())
+        if not beacons:  # one light on the roof of the nacelle
+            beacons = [(int(np.where(solid[top])[0].mean()), top - 1)]
+
+        # Rotor hub: the middle of the blades. Pad to a square around it so it
+        # can turn without being clipped.
+        ys, xs = np.where(rotor[..., 3] > 0)
+        hub = (int(round(xs.mean())), int(round(ys.mean())))
+        radius = int(np.ceil(np.sqrt(((xs - hub[0]) ** 2 + (ys - hub[1]) ** 2).max()))) + 1
+        side = radius * 2 + 1
+        square = np.zeros((side, side, 4), dtype=np.uint8)
+        oy, ox = radius - hub[1], radius - hub[0]
+        square[oy : oy + rotor.shape[0], ox : ox + rotor.shape[1]] = rotor
+
+        frames[f"tower_{size}"] = tower
+        frames[f"tower_{size}_day"] = gradient_map(tower, DAY_TURBINE)
+        for i in range(ROTOR_FRAMES):
+            f = square if i == 0 else rotate_pixel_art(square, -i * 120 / ROTOR_FRAMES, (radius, radius))
+            clean(f)
+            frames[f"rotor_{size}_{i}"] = f
+            frames[f"rotor_{size}_day_{i}"] = gradient_map(f, DAY_TURBINE)
+
+        # all positions relative to the bottom centre of the tower
+        bx = tw / 2
+        rig[size] = {
+            "hub": [round(nose_x - bx), nose_y - th],
+            "beacons": [[round(x - bx), y - th] for x, y in beacons],
+            "height": th,
+        }
+    pack_atlas(frames, "turbines")
+    rig["frames"] = ROTOR_FRAMES
+    rig["painted"] = [{"x": hx, "y": hy, "size": size} for hx, hy, *_, size in PAINTED_ROTORS]
+    (OUT / "turbine_rig.json").write_text(json.dumps(rig, indent=1))
+    print("turbine rig", rig)
 
 
 # --- characters ---------------------------------------------------------------
@@ -390,6 +579,127 @@ def split_lights(layer, beacons=False):
     return lights, marks
 
 
+# The rotors painted into the hills, measured on the tiled layer (x from the left
+# of bg_hills.png): hub x, hub y, blade reach, the angle of each blade (degrees
+# counter-clockwise from pointing right; painted blades are not always evenly
+# spaced), tower left and right edge, and which
+# rotor from turbines.png replaces it. The painted towers and nacelles stay;
+# only the blades are painted out, and the game turns a rotor on each hub.
+PAINTED_ROTORS = [
+    (25, 58, 31, (93, 213, 333), 19, 30, "large"),
+    (67, 59, 21, (14, 134, 254), 65, 75, "medium"),
+    (117, 49, 21, (91, 211, 331), 113, 124, "medium"),
+    (212, 40, 20, (90, 228, 330), 210, 221, "medium"),
+    (284, 19, 20, (131, 238, 351), 280, 289, "medium"),
+    (326, 24, 22, (95, 215, 335), 323, 332, "medium"),
+    (364, 25, 21, (96, 216, 336), 361, 370, "medium"),
+]
+TILE_CROP = 26  # the tiled layers start this many pixels into the picture (see tile())
+
+
+def erase_painted_blades(layer):
+    """Paint the hills back over the painted blades, in place.
+
+    Each blade is a thin strip from the hub. Where a strip crosses the tower,
+    the tower is continued down from above; where it crosses a ridge line, the
+    line is carried straight across; anything else takes the commonest colour
+    around it, filling from the edges in."""
+    h, w = layer.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    mask = np.zeros((h, w), bool)
+    tower = np.zeros((h, w), bool)
+    lum0 = layer[..., :3].astype(int) @ np.array([3, 6, 1])
+
+    def thin_score(hx, hy, reach, deg):
+        """Share of points along a ray that look like a thin stroke."""
+        t = np.radians(deg)
+        dx, dy = np.cos(t), -np.sin(t)
+        hit = n = 0
+        for r in np.arange(5, reach - 1, 0.7):
+            x, y = hx + dx * r, hy + dy * r
+            pts = [(x, y), (x - dy * 3, y + dx * 3), (x + dy * 3, y - dx * 3)]
+            if not all(0 <= round(px) < w and 0 <= round(py) < h for px, py in pts):
+                continue
+            c, a, b = (lum0[int(round(py)), int(round(px))] for px, py in pts)
+            n += 1
+            hit += abs(c - a) > 40 and abs(c - b) > 40
+        return hit / max(n, 1)
+
+    for hx, hy, reach, angles, x0, x1, _ in PAINTED_ROTORS:
+        hx, x0, x1 = hx + TILE_CROP, x0 + TILE_CROP, x1 + TILE_CROP
+        thick = 5.0 if reach > 25 else 3.6
+        mask |= (xx - hx) ** 2 + (yy - hy) ** 2 <= 9  # the hub
+        for guess in angles:
+            best = max(range(guess - 4, guess + 5), key=lambda d: thin_score(hx, hy, reach, d))
+            t = np.radians(best)
+            dx, dy = np.cos(t), -np.sin(t)
+            along = (xx - hx) * dx + (yy - hy) * dy
+            across = np.abs(-(xx - hx) * dy + (yy - hy) * dx)
+            taper = thick * (1 - 0.3 * np.clip(along / reach, 0, 1))  # blades narrow to the tip
+            mask |= (along >= 0) & (along <= reach + 2.5) & (across <= taper)
+        tower |= (xx >= x0) & (xx <= x1) & (yy > hy + 3)
+
+    rgb = layer[..., :3].astype(int)
+    lum = rgb @ np.array([3, 6, 1])
+
+    # 1. the tower: copy each column down from just above... or up from below
+    for y, x in sorted(zip(*np.where(mask & tower))):
+        below = np.where(~mask[y:, x])[0]
+        if len(below):
+            layer[y, x, :3] = layer[y + below[0], x, :3]
+            mask[y, x] = False
+
+    # 2. ridge lines crossing a blade: join where they go in and come out
+    ridge = (lum < 300) & ~mask
+    labels, n = ndimage.label(mask)
+    for i in range(1, n + 1):
+        region = labels == i
+        touch = ndimage.binary_dilation(region, np.ones((3, 3))) & ridge
+        ys, xs = np.where(touch)
+        if len(xs) < 2:
+            continue
+        # pair touching ridge pixels on opposite sides of the strip that lie on one line
+        pts = sorted(zip(xs, ys))
+        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+            if bx - ax < 2 or abs(by - ay) > 3:
+                continue
+            steps = bx - ax
+            for k in range(1, steps):
+                x = ax + k
+                y = int(round(ay + (by - ay) * k / steps))
+                if mask[y, x] and region[y, x]:
+                    layer[y, x, :3] = layer[ay, ax, :3]
+                    mask[y, x] = False
+
+    # 3. the rest: grow inwards from the edges, a ring at a time
+    filled = mask.copy()
+    known = ~mask
+    while not known.all():
+        ring = ndimage.binary_dilation(known) & ~known
+        for y, x in zip(*np.where(ring)):
+            y0, y1, x0, x1 = max(y - 1, 0), min(y + 2, h), max(x - 1, 0), min(x + 2, w)
+            nb = layer[y0:y1, x0:x1][known[y0:y1, x0:x1]][:, :3]
+            nb_lum = nb.astype(int) @ np.array([3, 6, 1])
+            pick = nb[nb_lum >= 300] if (nb_lum >= 300).any() else nb  # do not smear outlines
+            cols, counts = np.unique(pick, axis=0, return_counts=True)
+            layer[y, x, :3] = cols[counts.argmax()]
+        known |= ring
+
+    # 4. growing in rings leaves stair-steps where two colours meet: settle
+    # each filled pixel to the commonest colour around it, twice
+    for _ in range(2):
+        snapshot = layer.copy()
+        for y, x in zip(*np.where(filled)):
+            y0, y1, x0, x1 = max(y - 1, 0), min(y + 2, h), max(x - 1, 0), min(x + 2, w)
+            nb = snapshot[y0:y1, x0:x1, :3].reshape(-1, 3)
+            nb_lum = nb.astype(int) @ np.array([3, 6, 1])
+            if (snapshot[y, x, :3].astype(int) @ np.array([3, 6, 1])) < 300:
+                continue  # keep the outlines drawn in step 2
+            pick = nb[nb_lum >= 300]
+            cols, counts = np.unique(pick, axis=0, return_counts=True)
+            layer[y, x, :3] = cols[counts.argmax()]
+
+
 def background():
     from scipy import ndimage
 
@@ -402,11 +712,12 @@ def background():
     # The turbines cut off by the picture's edges are trimmed away first, or
     # each would meet its own reflection and look like a two-masted turbine.
     def tile(a):
-        a = a[:, 26:452]
+        a = a[:, TILE_CROP:452]
         return np.concatenate([a, a[:, ::-1]], axis=1)
 
     sky = full[:SKY_ROWS].copy()
     hills = full[SKY_ROWS:].copy()
+    erase_painted_blades(hills)
 
     # The moon: the bright shape in the upper-left of the sky.
     region = sky[10:50, 55:110]
@@ -474,5 +785,6 @@ if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)
     buildings()
     props()
+    turbines()
     character()
     background()

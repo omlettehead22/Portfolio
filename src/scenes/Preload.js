@@ -23,6 +23,7 @@ export default class Preload extends Phaser.Scene {
       this.load.spritesheet(key, s.file, { frameWidth: s.frameWidth, frameHeight: s.frameHeight });
     }
     for (const [key, a] of Object.entries(ASSETS.atlases)) this.load.atlas(key, a.image, a.data);
+    for (const [key, file] of Object.entries(ASSETS.json)) this.load.json(key, file);
     this.load.setPath(base);
     this.load.json("projects", "projects.json");
   }

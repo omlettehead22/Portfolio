@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE, BUILDING_SCALE, GROUND_SCALE } from "../config.js";
+import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE, BUILDING_SCALE, GROUND_SCALE, DOORS } from "../config.js";
 
 // Where the "Press E" marker floats: just above head height, in front of the door.
 const MARKER_BOTTOM = WORLD.groundY - 46;
@@ -135,7 +135,7 @@ export default class World extends Phaser.Scene {
     const h = VIEW.height - WORLD.groundY;
     this.lit.push(
       this.add
-        .tileSprite(0, WORLD.groundY, WORLD.width, h, "props", "tile_stone")
+        .tileSprite(0, WORLD.groundY, WORLD.width, h, "props", "tile_street")
         .setTileScale(GROUND_SCALE)
         .setOrigin(0)
         .setDepth(DEPTH.ground)
@@ -148,21 +148,31 @@ export default class World extends Phaser.Scene {
     this.platforms = [];
     for (const item of SCENERY) {
       const atlas = item.atlas ?? "props";
-      if (!this.textures.get(atlas).has(item.sprite)) continue;
-      const depth = item.back ? DEPTH.back : atlas === "buildings" ? DEPTH.building : DEPTH.prop;
       const scale = item.scale ?? 1;
+      const depth = item.back ? DEPTH.back : atlas === "buildings" ? DEPTH.building : DEPTH.prop;
+      if (item.turbine) {
+        this.lit.push(this.ambient.addStreetTurbine(item.x, item.turbine, scale, depth));
+        continue;
+      }
+      if (!this.textures.get(atlas).has(item.sprite)) continue;
       const img = this.add.image(item.x, WORLD.groundY, atlas, item.sprite).setOrigin(0.5, 1).setScale(scale).setDepth(depth);
       this.lit.push(img);
 
       if (item.platform) {
         // Solid only from above: you can land on it, but walk and jump through it.
-        const w = img.displayWidth;
-        const h = img.displayHeight;
-        const zone = this.add.zone(item.x, WORLD.groundY - h / 2, w - 6, h - 2);
-        this.physics.add.existing(zone, true);
-        const c = zone.body.checkCollision;
-        c.down = c.left = c.right = false;
-        this.platforms.push(zone);
+        // Either the whole sprite, or listed surfaces ([left, top, width] in sprite pixels).
+        const left = item.x - img.displayWidth / 2;
+        const top = WORLD.groundY - img.displayHeight;
+        const surfaces = Array.isArray(item.platform)
+          ? item.platform.map(([sx, sy, sw]) => [left + sx * scale, top + sy * scale, sw * scale])
+          : [[left + 3, top, img.displayWidth - 6]];
+        for (const [zx, zy, zw] of surfaces) {
+          const zone = this.add.zone(zx + zw / 2, zy + 3, zw, 6);
+          this.physics.add.existing(zone, true);
+          const c = zone.body.checkCollision;
+          c.down = c.left = c.right = false;
+          this.platforms.push(zone);
+        }
       }
       if (item.glow) {
         this.ambient.addLamp(
@@ -191,6 +201,8 @@ export default class World extends Phaser.Scene {
       sprite.setOrigin(0.5, 1).setScale(BUILDING_SCALE).setDepth(DEPTH.building);
       this.ambient.addFixtures(sprite.frame.name, project.x, BUILDING_SCALE);
       this.lit.push(sprite);
+      // the door, where the marker floats and "Press E" is measured from
+      const door = project.x + (DOORS[sprite.frame.name] ?? 0) * BUILDING_SCALE;
 
       // Clicking or tapping a building opens it, wherever the player is standing.
       sprite.setInteractive({ useHandCursor: true });
@@ -201,15 +213,15 @@ export default class World extends Phaser.Scene {
 
       // A floating marker shows it can be entered: a lightbulb, then a star once visited.
       // Buildings still waiting for their project have none.
-      if (project.draft) return { project, sprite, marker: null };
+      if (project.draft) return { project, sprite, door, marker: null };
       const marker = this.add
-        .image(project.x, MARKER_BOTTOM, "props", visited.has(project.id) ? "star" : "bulb")
+        .image(door, MARKER_BOTTOM, "props", visited.has(project.id) ? "star" : "bulb")
         .setOrigin(0.5, 1)
         .setDepth(DEPTH.glow);
       if (!this.calm) {
         this.tweens.add({ targets: marker, y: marker.y - 4, duration: 1100, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
       }
-      return { project, sprite, marker };
+      return { project, sprite, door, marker };
     });
   }
 
@@ -427,7 +439,7 @@ export default class World extends Phaser.Scene {
     let near = null;
     let best = T.interactRange;
     for (const b of this.buildings) {
-      const d = Math.abs(b.project.x - this.player.x);
+      const d = Math.abs(b.door - this.player.x);
       if (d <= best) {
         best = d;
         near = b;
@@ -438,7 +450,7 @@ export default class World extends Phaser.Scene {
     const hud = this.hud;
     hud.near = near ? near.project : null;
     if (near) {
-      hud.x = near.project.x - cam.scrollX;
+      hud.x = near.door - cam.scrollX;
       hud.y = MARKER_BOTTOM - 34; // above the marker
     }
     hud.progress = this.player.x / WORLD.width;

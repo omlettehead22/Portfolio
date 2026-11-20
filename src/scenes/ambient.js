@@ -1,17 +1,22 @@
 import Phaser from "phaser";
 import { VIEW, WORLD, PARALLAX, AMBIENT as A, WINDOW_LIGHTS, FIXTURES } from "../config.js";
+
+const TILE = 852; // width of one repeat of the hill layers (bg_hills.png)
+// The rotors in turbines.png have pale blades; the painted night towers are muted
+// teal. This tint brings the night rotors to the towers' colour.
+const NIGHT_ROTOR_TINT = 0x6ba1a8;
 import { currentHour, mix } from "../daynight.js";
 
 // Everything that moves on its own: clouds, birds, shooting stars, a plane,
-// city windows switching on and off, blinking turbine lights, breathing street
-// lamps, and the hydrogen flare with its smoke.
+// turning wind turbines, city windows switching on and off, blinking turbine
+// lights, breathing street lamps, and the hydrogen flare with its smoke.
 //
 // None of it uses new art: the lights are lifted out of the background picture
 // by tools/process_assets.py, and the clouds and birds are drawn in code.
 // With "reduce motion" switched on in the system settings, the scene is lit
 // the same way but holds still.
 
-const DEPTH = { meteor: 1.2, clouds: 1.7, birds: 1.8, hillsLights: 2.2, cityLights: 3.2, fixture: 8 };
+const DEPTH = { meteor: 1.2, clouds: 1.7, birds: 1.8, hillsLights: 2.2, rotors: 2.25, cityLights: 3.2, fixture: 8 };
 const between = ([lo, hi]) => Phaser.Math.Between(lo * 1000, hi * 1000);
 
 export default class Ambient {
@@ -24,11 +29,15 @@ export default class Ambient {
     this.lamps = []; // { glow, phase, dip }
     this.fixtures = []; // building lights: { glow }
     this.flares = []; // { glow, smoke }
+    this.rotors = []; // { night, day, size, phase, lit }
+    this.streetBeacons = [];
+    this.rig = scene.cache.json.get("turbine_rig");
   }
 
   create() {
     this.addClouds();
     this.addLights();
+    this.addHillRotors();
     this.meteor = this.scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.meteor);
     this.plane = this.scene.add.graphics().setScrollFactor(0).setDepth(DEPTH.meteor);
     this.birds = [];
@@ -175,6 +184,85 @@ export default class Ambient {
     w.tex.refresh();
   }
 
+  // --- wind turbines ------------------------------------------------------------
+
+  // A rotor turns on every turbine painted in the hills. The painted blades were
+  // taken out of the picture by tools/process_assets.py; towers and nacelles stay.
+  // The layer repeats every TILE pixels, its second half mirrored, so each rotor
+  // appears at x, its mirror image, and both again one repeat further on.
+  addHillRotors() {
+    for (const { x, y, size } of this.rig.painted) {
+      for (const lx of [x, TILE - 1 - x, x + TILE, 2 * TILE - 1 - x]) {
+        this.addRotor(lx, WORLD.skyRows + y, size, { scale: 1, depth: DEPTH.rotors, parallax: PARALLAX.hills });
+      }
+    }
+  }
+
+  // One rotor. Hill rotors swap to white daytime frames as the light comes up;
+  // street ones are tinted with the daylight like everything else on the street.
+  addRotor(x, y, size, { scale, depth, parallax, lit = false }) {
+    const make = (day) =>
+      this.scene.add
+        .image(x, y, "turbines", `rotor_${size}${day ? "_day" : ""}_0`)
+        .setScale(scale)
+        .setScrollFactor(parallax ?? 1, parallax === undefined ? 1 : 0)
+        .setDepth(depth + (day ? 0.01 : 0));
+    const rotor = {
+      night: make(false),
+      day: lit ? null : make(true),
+      x,
+      parallax: parallax ?? 1,
+      reach: (this.scene.textures.getFrame("turbines", `rotor_${size}_0`).width * scale) / 2,
+      frame: -1,
+      size,
+      lit,
+      phase: Math.random() * this.rig.frames,
+      fps: A.rotorFps[size] * Phaser.Math.FloatBetween(0.85, 1.15),
+    };
+    this.rotors.push(rotor);
+    return rotor;
+  }
+
+  // A turbine standing on the street: tower from turbines.png, turning rotor,
+  // red lights on the nacelle at night.
+  addStreetTurbine(x, size, scale, depth) {
+    const tower = this.scene.add
+      .image(x, WORLD.groundY, "turbines", `tower_${size}`)
+      .setOrigin(0.5, 1)
+      .setScale(scale)
+      .setDepth(depth);
+    const r = this.rig[size];
+    this.addRotor(x + r.hub[0] * scale, WORLD.groundY + r.hub[1] * scale, size, { scale, depth: depth + 0.05, lit: true });
+    for (const [bx, by] of r.beacons) {
+      this.streetBeacons.push(
+        this.scene.add
+          .rectangle(x + bx * scale, WORLD.groundY + by * scale, scale, scale, 0xff4a3a)
+          .setOrigin(0)
+          .setDepth(depth + 0.1)
+      );
+    }
+    return tower;
+  }
+
+  turnRotors() {
+    const frames = this.rig.frames;
+    const cam = this.scene.cameras.main;
+    const width = this.scene.scale.width;
+    for (const r of this.rotors) {
+      // skip the ones off screen: Phaser would otherwise draw them anyway
+      const sx = r.x - cam.scrollX * r.parallax;
+      const onScreen = sx > -r.reach && sx < width + r.reach;
+      r.night.setVisible(onScreen);
+      r.day?.setVisible(onScreen);
+      if (!onScreen) continue;
+      const i = this.calm ? 0 : Math.floor(r.phase + (this.clock / 1000) * r.fps) % frames;
+      if (i === r.frame) continue;
+      r.frame = i;
+      r.night.setFrame(`rotor_${r.size}_${i}`);
+      r.day?.setFrame(`rotor_${r.size}_day_${i}`);
+    }
+  }
+
   // --- lights on the street ----------------------------------------------------
 
   addLamp(glow) {
@@ -275,6 +363,13 @@ export default class Ambient {
     for (const c of this.clouds) c.sprite.setTint(cloudTint).setAlpha(1 - L.night * 0.55);
     for (const w of this.windows) w.sprite.setAlpha(L.night);
     for (const f of this.fixtures) f.glow.setAlpha(L.glow * 0.9);
+    for (const r of this.rotors) {
+      if (r.lit) r.night.setTint(L.light);
+      else {
+        r.night.setTint(NIGHT_ROTOR_TINT);
+        r.day.setAlpha(1 - L.night).setTint(L.light);
+      }
+    }
   }
 
   update(time, delta) {
@@ -288,6 +383,8 @@ export default class Ambient {
     // turbine lights blink together, as real wind farms do
     const blink = this.calm || time % A.beaconPeriodMs < A.beaconPeriodMs * 0.35;
     this.beacons.setAlpha(this.light.night * (blink ? 1 : 0.12));
+    for (const b of this.streetBeacons) b.setAlpha(this.light.night * (blink ? 1 : 0));
+    this.turnRotors();
 
     // street lamps breathe a little, and one now and then stutters
     for (const lamp of this.lamps) {
