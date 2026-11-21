@@ -93,8 +93,9 @@ export function setupBook(opts) {
   let at = 0;
   let turning = null; // the page turn in progress: { finish() }
 
-  // Sprite paths come from the page's base, so they work under /Portfolio/ too.
-  const art = (name) => `${import.meta.env.BASE_URL}assets/book/${name}.png`;
+  // Sprite paths come from the page's base, made absolute: a relative url() in a
+  // custom property is read against the stylesheet's folder, not the page's.
+  const art = (name) => new URL(`${import.meta.env.BASE_URL}assets/book/${name}.png`, document.baseURI).href;
   book.style.setProperty("--spread", `url(${art("spread")})`);
   book.style.setProperty("--paper", `url(${art("paper")})`);
   cover.style.backgroundImage = `url(${art("cover")})`;
