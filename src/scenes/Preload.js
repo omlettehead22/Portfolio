@@ -78,6 +78,27 @@ export default class Preload extends Phaser.Scene {
     g.generateTexture("glow_small", 16, 16);
     g.clear();
 
+    // the pool of light a street lamp throws on the paving: a stepped oval,
+    // brightest in the middle (drawn white, tinted warm in the scene)
+    for (const [w, alpha] of [[72, 0.25], [52, 0.3], [32, 0.35]]) {
+      const rows = [[0, 0.5], [1, 0.8], [2, 1], [3, 1], [4, 1], [5, 0.8], [6, 0.5]];
+      for (const [row, share] of rows) {
+        const rw = Math.round((w * share) / 2) * 2;
+        g.fillStyle(0xffffff, alpha).fillRect((72 - rw) / 2, row, rw, 1);
+      }
+    }
+    g.generateTexture("pool", 72, 7);
+    g.clear();
+
+    // a concrete plinth: a light top edge, the face, a dark bottom line
+    g.fillStyle(0x5b6f7f).fillRect(0, 0, 8, 6);
+    g.fillStyle(0x93a4ad).fillRect(0, 0, 8, 1);
+    g.fillStyle(0x7a8c98).fillRect(0, 1, 8, 1);
+    g.fillStyle(0x3e4f5e).fillRect(0, 5, 8, 1);
+    g.fillStyle(0x4f6170).fillRect(7, 2, 1, 3); // joints between slabs
+    g.generateTexture("slab", 8, 6);
+    g.clear();
+
     // dust kicked up on landing, and smoke from the hydrogen flare
     g.fillStyle(0xffffff).fillRect(0, 0, 2, 2);
     g.generateTexture("dust", 2, 2);

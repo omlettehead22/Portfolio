@@ -11,13 +11,14 @@ A side-scrolling pixel-art portfolio: the visitor walks along a night-time stree
 
 ## Where things live
 
-- `public/projects.json`: all project content and building positions. The game, the project window and the list page all read this one file. A project's `sprite` is a building name from `public/assets/buildings.json`. Entries with `"draft": true` are buildings still waiting for a project: shown as "Coming soon", left off the list page.
+- `public/projects.json`: all project content and building positions. The game, the project window and the list page all read this one file. A project's `sprite` is a building name from `public/assets/buildings.json`. Entries with `"draft": true` are buildings still waiting for a project: shown as "Coming soon", left off the list page. The `about` entry is the welcome hall's "About me"; links whose `url` starts with `TODO` are hidden until filled in.
 - `src/config.js`: movement tuning, world size, parallax speeds, the day/night timetable, street scenery and NPCs.
 - `src/scenes/`: Phaser scenes. `Boot` → `Preload` (loads assets, reports progress) → `World` (the street). `ambient.js` holds everything that moves on its own (turning turbines, clouds, birds, shooting stars, plane, city windows, turbine lights, lamps, the hydrogen flare); its settings are `AMBIENT`, `WINDOW_LIGHTS`, `FIXTURES` and `DOORS` in `src/config.js`. Turbine positions come from `public/assets/turbine_rig.json`, written by the asset script.
 - `src/daynight.js`: works out the light for the visitor's local time. `?time=day|dusk|night|dawn|cycle|<hour>` overrides it.
-- `src/main.js`, `src/ui/`: the HTML interface around the canvas (intro, project window, touch buttons, minimap, pause).
+- `src/main.js`, `src/ui/`: the HTML interface around the canvas (intro, project window, touch buttons, minimap, pause). `src/ui/hud.js` draws what follows the game each frame: the prompt, NPC speech, the walk hint and the phone card.
 - `src/scale.js`: whole-number pixel scaling.
-- `vite.config.js`: base path, and the plugin that writes the list page from `projects.json`.
+- `vite.config.js`: base path, and the plugin that fills the pages from `projects.json` (list page, About, link-preview tags, 404 page).
+- `public/og.png`: the link-preview picture, made by `tools/make_preview_image.py` from a 960x540 game screenshot.
 - `public/assets/assets.md`: the art brief for each asset. `art-src/` holds the original renders, and `tools/process_assets.py` cuts them into `buildings`, `props` and `character` sprites. New sheets need their sprite boxes added to that script.
 
 ## Branches

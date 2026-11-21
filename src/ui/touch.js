@@ -35,7 +35,7 @@ export function setupTouch({ onAction }) {
 
   return {
     release() {
-      controls.left = controls.right = controls.jump = false;
+      controls.left = controls.right = controls.jump = controls.down = false;
       for (const b of root.querySelectorAll(".down")) b.classList.remove("down");
     },
   };

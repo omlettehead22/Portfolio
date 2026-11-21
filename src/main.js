@@ -4,6 +4,7 @@ import { setSound, soundOn, play } from "./audio.js";
 import { setupModal } from "./ui/modal.js";
 import { setupTouch } from "./ui/touch.js";
 import { fitGame } from "./scale.js";
+import { setupHud } from "./ui/hud.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -15,14 +16,14 @@ const pauseBtn = $("pause-toggle");
 const soundBtn = $("sound-toggle");
 const introSound = $("intro-sound");
 const pausedVeil = $("paused");
-const prompt = $("prompt");
-const promptTitle = $("prompt-title");
 const minimap = $("minimap");
-const mmPlayer = $("mm-player");
+const aboutBtn = $("about-open");
+aboutBtn.addEventListener("click", () => about && openModal(about));
 const mmCount = $("mm-count");
 
 let game = null;
 let projects = [];
+let about = null;
 const visited = new Set(store.get(STORAGE.visited, []));
 
 const focusGame = () => game?.canvas?.focus({ preventScroll: true });
@@ -63,7 +64,7 @@ const openModal = setupModal({
     ui.modal = true;
     touch.release();
     play("open");
-    if (!project.draft) {
+    if (!project.draft && project.kind !== "about") {
       visited.add(project.id);
       store.set(STORAGE.visited, [...visited]);
       drawVisited();
@@ -89,6 +90,12 @@ window.addEventListener("keydown", (e) => {
 // --- minimap -----------------------------------------------------------------
 function buildMinimap() {
   const track = minimap.querySelector(".mm-track");
+  if (about) {
+    const home = document.createElement("span");
+    home.className = "mm-home";
+    home.style.left = `${(about.x / WORLD.width) * 100}%`;
+    track.append(home);
+  }
   for (const p of projects) {
     const dot = document.createElement("span");
     dot.className = p.draft ? "mm-building draft" : "mm-building";
@@ -149,6 +156,8 @@ async function boot() {
 
   game.events.on("world-ready", (data) => {
     projects = data.projects;
+    about = data.about ? { ...data.about, kind: "about" } : null;
+    aboutBtn.disabled = !about;
     buildMinimap();
     $("loading").hidden = true;
     startBtn.disabled = false;
@@ -158,31 +167,8 @@ async function boot() {
 
   game.events.on("open-project", openModal);
 
-  // The scene reports where the prompt and the minimap marker belong each
-  // frame. Only touch the page when something has actually changed: writing
-  // styles every frame makes the browser redo its layout work each time.
-  let lastNear;
-  let lastShow = false;
-  let lastTransform = "";
-  let lastLeft = "";
-  game.events.on("hud", (hud) => {
-    const zoom = game.registry.get("zoom") || 1;
-    const show = Boolean(hud.near) && !isFrozen();
-    if (show !== lastShow) prompt.hidden = !(lastShow = show);
-    if (show) {
-      if (hud.near !== lastNear) {
-        promptTitle.textContent = `· ${hud.near.draft ? "Coming soon" : hud.near.title}`;
-        prompt.half = prompt.offsetWidth / 2 + 4; // measure once per building, not every frame
-      }
-      const max = game.scale.width * zoom;
-      const x = Math.round(Math.min(Math.max(hud.x * zoom, prompt.half), max - prompt.half));
-      const transform = `translate(${x}px, ${Math.round(hud.y * zoom)}px) translate(-50%, -100%)`;
-      if (transform !== lastTransform) prompt.style.transform = lastTransform = transform;
-    }
-    lastNear = show ? hud.near : null;
-    const left = `${(hud.progress * 100).toFixed(1)}%`;
-    if (left !== lastLeft) mmPlayer.style.left = lastLeft = left;
-  });
+  // prompt, speech, hint, minimap marker and the phone card
+  setupHud(game, { onOpen: () => game.events.emit("action") });
 }
 
 boot();

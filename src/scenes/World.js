@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE, BUILDING_SCALE, GROUND_SCALE, DOORS } from "../config.js";
+import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE, BUILDING_SCALE, GROUND_SCALE, DOORS, TALK_RANGE } from "../config.js";
 
 // Where the "Press E" marker floats: just above head height, in front of the door.
 const MARKER_BOTTOM = WORLD.groundY - 46;
@@ -8,7 +8,11 @@ import { currentHour, isCycling, lightAt, mix } from "../daynight.js";
 import { play } from "../audio.js";
 import Ambient from "./ambient.js";
 
-const DEPTH = { sky: 0, stars: 1, sun: 1.5, hills: 2, city: 3, back: 4, ground: 5, building: 6, prop: 7, glow: 8, npc: 9, player: 10 };
+const DEPTH = { sky: 0, stars: 1, sun: 1.5, hills: 2, city: 3, back: 4, ground: 5, pool: 5.1, shadow: 5.2, building: 6, prop: 7, glow: 8, npc: 9, player: 10 };
+
+// Props that cast a contact shadow: anything standing on the street in front of
+// the buildings that is solid down to the ground (not plants, not the fence).
+const CASTS_SHADOW = new Set(["crates", "charger", "van", "transformer", "h2_cylinder", "lamp", "cart", "bicycle", "forklift", "solar_panel"]);
 
 export default class World extends Phaser.Scene {
   constructor() {
@@ -18,11 +22,14 @@ export default class World extends Phaser.Scene {
   create() {
     const data = this.cache.json.get("projects");
     this.projects = data.projects;
+    // the welcome hall opens "About me": it is built like a project
+    this.about = data.about ? { ...data.about, kind: "about" } : null;
     this.calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.frozen = false;
     this.near = null;
-    this.hud = { near: null, x: 0, y: 0, progress: 0 };
+    this.hud = { near: null, x: 0, y: 0, progress: 0, talk: null, hint: null, next: null };
     this.lit = [];   // everything that takes the colour of the daylight
+    this.shadowAlpha = 0.3; // set properly by refreshLight()
 
     this.physics.world.setBounds(0, 0, WORLD.width, VIEW.height);
     this.physics.world.gravity.y = T.gravity;
@@ -111,8 +118,54 @@ export default class World extends Phaser.Scene {
   }
 
   // Set every colour in the scene for the current time of day.
+  // A soft contact shadow on the paving, so things stand on the street rather
+  // than float over it. Drawn pixel by pixel as a stepped oval, so it stays crisp.
+  shadowTexture(width) {
+    const w = Math.max(4, Math.round(width / 2) * 2);
+    const key = `shadow_${w}`;
+    if (!this.textures.exists(key)) {
+      const tex = this.textures.createCanvas(key, w, 4);
+      const ctx = tex.getContext();
+      ctx.fillStyle = "#000";
+      for (const [row, share] of [[0, 0.7], [1, 1], [2, 1], [3, 0.7]]) {
+        const rw = Math.round((w * share) / 2) * 2;
+        ctx.fillRect((w - rw) / 2, row, rw, 1);
+      }
+      tex.refresh();
+    }
+    return key;
+  }
+
+  addShadow(x, width) {
+    this.shadows ??= [];
+    const s = this.add.image(Math.round(x), WORLD.groundY + 1, this.shadowTexture(width)).setDepth(DEPTH.shadow);
+    this.shadows.push(s);
+    return s;
+  }
+
+  // The player's shadow sits on whatever is below them, shrinking and fading
+  // as they rise, so a jump reads clearly.
+  movePlayerShadow() {
+    const body = this.player.body;
+    const x = this.player.x;
+    let surface = WORLD.groundY;
+    for (const p of this.platforms) {
+      const pb = p.body;
+      if (x >= pb.left && x <= pb.right && pb.top >= body.bottom - 2 && pb.top < surface) surface = pb.top;
+    }
+    const height = Math.max(0, surface - body.bottom);
+    const width = height > 40 ? 8 : height > 16 ? 12 : 16;
+    const s = this.playerShadow;
+    s.setTexture(this.shadowTexture(width));
+    s.setPosition(Math.round(x), surface + 1);
+    s.setAlpha(this.shadowAlpha * Phaser.Math.Clamp(1 - height / 90, 0.3, 1));
+  }
+
   refreshLight() {
     const L = lightAt(currentHour());
+    // shadows are firmer in daylight, softer at night
+    this.shadowAlpha = 0.22 + 0.2 * (1 - L.night);
+    for (const s of this.shadows ?? []) s.setAlpha(this.shadowAlpha);
     const width = this.scale.width;
 
     this.drawSky(L.sky, L.horizon);
@@ -158,8 +211,19 @@ export default class World extends Phaser.Scene {
         this.lit.push(this.ambient.addStreetTurbine(item.x, item.turbine, scale, depth));
         continue;
       }
+      if (item.slab) {
+        // a concrete plinth: lit edge on top, darker face below
+        this.lit.push(
+          this.add.tileSprite(item.x, WORLD.groundY, item.slab, 6, "slab").setOrigin(0.5, 1).setDepth(DEPTH.prop - 0.1)
+        );
+        continue;
+      }
       if (!this.textures.get(atlas).has(item.sprite)) continue;
-      const img = this.add.image(item.x, WORLD.groundY, atlas, item.sprite).setOrigin(0.5, 1).setScale(scale).setDepth(depth);
+      const img = this.add
+        .image(item.x, WORLD.groundY - (item.lift ?? 0), atlas, item.sprite)
+        .setOrigin(0.5, 1)
+        .setScale(scale)
+        .setDepth(item.front ? depth + 0.2 : depth);
       this.lit.push(img);
 
       if (item.platform) {
@@ -187,10 +251,17 @@ export default class World extends Phaser.Scene {
             .setScale(scale)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setTint(0xffb45c)
-            .setDepth(DEPTH.glow)
+            .setDepth(DEPTH.glow),
+          // the pool of light the lamp throws on the paving
+          this.add
+            .image(item.x, WORLD.groundY + 4, "pool")
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setTint(0xffb45c)
+            .setDepth(DEPTH.pool)
         );
       }
       if (atlas === "buildings") this.ambient.addFixtures(item.sprite, item.x, scale);
+      if (CASTS_SHADOW.has(item.sprite) && !item.back && !item.lift) this.addShadow(item.x, img.displayWidth * 0.8);
     }
   }
 
@@ -198,7 +269,8 @@ export default class World extends Phaser.Scene {
     const visited = new Set(store.get(STORAGE.visited, []));
     const atlas = this.textures.get("buildings");
 
-    this.buildings = this.projects.map((project) => {
+    const entries = this.about ? [this.about, ...this.projects] : this.projects;
+    this.buildings = entries.map((project) => {
       // "sprite" is a name from the buildings atlas, or the key of a single image
       let sprite;
       if (atlas.has(project.sprite)) sprite = this.add.image(project.x, WORLD.groundY, "buildings", project.sprite);
@@ -217,11 +289,13 @@ export default class World extends Phaser.Scene {
         this.openProject(project);
       });
 
-      // A floating marker shows it can be entered: a lightbulb, then a star once visited.
-      // Buildings still waiting for their project have none.
+      // A floating marker shows it can be entered: a lightbulb, then a star once
+      // visited; a scroll over the About hall. Buildings still waiting for their
+      // project have none.
       if (project.draft) return { project, sprite, door, marker: null };
+      const frame = project.kind === "about" ? "scroll" : visited.has(project.id) ? "star" : "bulb";
       const marker = this.add
-        .image(door, MARKER_BOTTOM, "props", visited.has(project.id) ? "star" : "bulb")
+        .image(door, MARKER_BOTTOM, "props", frame)
         .setOrigin(0.5, 1)
         .setDepth(DEPTH.glow);
       if (!this.calm) {
@@ -246,7 +320,8 @@ export default class World extends Phaser.Scene {
         sprite.play({ key: npc.frame, startFrame: Phaser.Math.Between(0, 1), delay: Phaser.Math.Between(0, 900) });
       }
       this.lit.push(sprite);
-      this.npcs.push({ sprite, faceLeft: !!npc.faceLeft });
+      this.npcs.push({ sprite, faceLeft: !!npc.faceLeft, say: npc.say });
+      this.addShadow(npc.x, 16);
     }
   }
 
@@ -269,11 +344,19 @@ export default class World extends Phaser.Scene {
     player.setCollideWorldBounds(true);
     player.play("idle");
     this.player = player;
+    this.playerShadow = this.add.image(x, WORLD.groundY + 1, this.shadowTexture(16)).setDepth(DEPTH.shadow);
     this.lit.push(player);
 
     this.physics.add.collider(player, this.ground);
     // land on a platform only when coming down onto its top
-    this.physics.add.collider(player, this.platforms, null, (p, plat) => p.body.prev.y + p.body.height <= plat.body.top + 4);
+    // land on a platform only when coming down onto its top, and not while dropping through
+    this.dropUntil = -1;
+    this.physics.add.collider(
+      player,
+      this.platforms,
+      null,
+      (p, plat) => this.time.now >= this.dropUntil && p.body.prev.y + p.body.height <= plat.body.top + 4
+    );
 
     this.dust = this.add
       .particles(0, 0, "dust", {
@@ -291,11 +374,17 @@ export default class World extends Phaser.Scene {
     this.rising = false;       // still in the upward part of a jump that can be cut short
     this.wasOnGround = true;
     this.fallSpeed = 0;
+    this.heldDir = 0;          // direction held, and since when (for running on touch)
+    this.heldSince = 0;
+    this.running = false;
   }
 
   addInput() {
     const K = Phaser.Input.Keyboard.KeyCodes;
-    this.keys = this.input.keyboard.addKeys({ left: K.LEFT, right: K.RIGHT, up: K.UP, a: K.A, d: K.D, w: K.W, space: K.SPACE, e: K.E });
+    this.keys = this.input.keyboard.addKeys({
+      left: K.LEFT, right: K.RIGHT, up: K.UP, down: K.DOWN,
+      a: K.A, d: K.D, w: K.W, s: K.S, space: K.SPACE, e: K.E, shift: K.SHIFT,
+    });
 
     // Jump and E are taken from key-press events rather than polled, so even the
     // quickest tap is never missed between two frames.
@@ -306,6 +395,12 @@ export default class World extends Phaser.Scene {
     this.input.keyboard.on("keydown-UP", pressJump);
     this.input.keyboard.on("keydown-W", pressJump);
     this.input.keyboard.on("keydown-SPACE", pressJump);
+    this.touchDownWasDown = false;
+    const pressDown = (e) => {
+      if (!e.repeat && !this.frozen) this.dropDown();
+    };
+    this.input.keyboard.on("keydown-DOWN", pressDown);
+    this.input.keyboard.on("keydown-S", pressDown);
     this.input.keyboard.on("keydown-E", (e) => {
       if (!e.repeat) this.interact();
     });
@@ -315,13 +410,22 @@ export default class World extends Phaser.Scene {
 
   // --- actions ---------------------------------------------------------------
 
+  // Standing on a crate stack, the van or the cart: fall through it.
+  dropDown() {
+    const body = this.player.body;
+    const onPlatform = body.touching.down && body.bottom < WORLD.groundY - 1;
+    if (!onPlatform) return;
+    this.dropUntil = this.time.now + T.dropMs;
+    body.setVelocityY(40); // a nudge downwards, so it reads as stepping off
+  }
+
   interact() {
     if (!this.frozen && this.near) this.openProject(this.near.project);
   }
 
   openProject(project) {
     this.savePosition();
-    this.buildings.find((b) => b.project === project)?.marker?.setFrame("star");
+    if (project.kind !== "about") this.buildings.find((b) => b.project === project)?.marker?.setFrame("star");
     this.game.events.emit("open-project", project);
   }
 
@@ -377,6 +481,7 @@ export default class World extends Phaser.Scene {
 
     for (const l of this.hills) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.hills);
     for (const l of this.city) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.city);
+    this.movePlayerShadow();
     this.ambient.update(time, delta);
     this.updateHud(cam);
   }
@@ -392,6 +497,20 @@ export default class World extends Phaser.Scene {
     const dir = (right ? 1 : 0) - (left ? 1 : 0);
     const grip = onGround ? 1 : T.airControl;
 
+    // --- running: Shift, or on touch a direction held for a moment ------------
+    if (dir !== this.heldDir) {
+      this.heldDir = dir;
+      this.heldSince = time;
+    }
+    const touchRun = (controls.left || controls.right) && time - this.heldSince >= T.runAfterMs;
+    const running = dir !== 0 && (keys.shift.isDown || touchRun);
+    // raise the speed limit at once, but lower it gradually so letting go of
+    // run eases back to a walk instead of snapping to it
+    const limit = running ? T.runSpeed : T.speed;
+    const dt = this.game.loop.delta / 1000;
+    body.maxVelocity.x = limit >= body.maxVelocity.x ? limit : Math.max(limit, body.maxVelocity.x - T.friction * dt);
+    this.running = running;
+
     if (dir !== 0) {
       const reversing = body.velocity.x * dir < 0;
       body.setAccelerationX(dir * T.acceleration * grip * (reversing ? T.turnBoost : 1));
@@ -401,6 +520,10 @@ export default class World extends Phaser.Scene {
       body.setAccelerationX(0);
       body.setDragX(T.friction * grip);
     }
+
+    // --- dropping through a platform (touch: the down button) ------------------
+    if (controls.down && !this.touchDownWasDown) this.dropDown();
+    this.touchDownWasDown = controls.down;
 
     // --- jumping --------------------------------------------------------------
     const touchJump = controls.jump && !this.touchJumpWasDown;
@@ -444,7 +567,7 @@ export default class World extends Phaser.Scene {
     else if (moving) {
       player.play("walk", true);
       // legs keep pace with the ground speed
-      player.anims.timeScale = Phaser.Math.Clamp(Math.abs(body.velocity.x) / T.speed, 0.4, 1);
+      player.anims.timeScale = Phaser.Math.Clamp(Math.abs(body.velocity.x) / T.speed, 0.4, T.runSpeed / T.speed);
     } else player.play("idle", true);
     if (!moving || !onGround) player.anims.timeScale = 1;
   }
@@ -455,25 +578,49 @@ export default class World extends Phaser.Scene {
   }
 
   updateHud(cam) {
-    // nearest building within reach, if any
+    const hud = this.hud;
+    const px = this.player.x;
+
+    // nearest door within reach, if any; and the nearest real project either way
     let near = null;
     let best = T.interactRange;
+    let next = null;
+    let nextDist = Infinity;
     for (const b of this.buildings) {
-      const d = Math.abs(b.door - this.player.x);
+      const d = Math.abs(b.door - px);
       if (d <= best) {
         best = d;
         near = b;
       }
+      if (!b.project.draft && b.project.kind !== "about" && d < nextDist) {
+        nextDist = d;
+        next = b;
+      }
     }
     this.near = near;
-
-    const hud = this.hud;
     hud.near = near ? near.project : null;
     if (near) {
       hud.x = near.door - cam.scrollX;
       hud.y = MARKER_BOTTOM - 34; // above the marker
     }
-    hud.progress = this.player.x / WORLD.width;
+    hud.next = next ? { project: next.project, dir: Math.sign(next.door - px) } : null;
+
+    // an NPC close by says their line, in a bubble over their head
+    hud.talk = null;
+    for (const npc of this.npcs) {
+      if (npc.say && Math.abs(npc.sprite.x - px) <= TALK_RANGE) {
+        hud.talk = { say: npc.say, x: npc.sprite.x - cam.scrollX, y: WORLD.groundY - 42 };
+        break;
+      }
+    }
+
+    // how to walk, over the player, until they have walked a little way
+    if (this.hintFrom === undefined) this.hintFrom = px;
+    if (Math.abs(px - this.hintFrom) > 48) this.hintDone = true;
+    hud.hint = this.hintDone ? null : { x: px - cam.scrollX, y: this.player.body.top - 6 };
+
+    hud.progress = px / WORLD.width;
     this.game.events.emit("hud", hud);
   }
+
 }

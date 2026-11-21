@@ -265,8 +265,8 @@ export default class Ambient {
 
   // --- lights on the street ----------------------------------------------------
 
-  addLamp(glow) {
-    this.lamps.push({ glow, phase: Math.random() * Math.PI * 2, dip: 0 });
+  addLamp(glow, pool) {
+    this.lamps.push({ glow, pool, phase: Math.random() * Math.PI * 2, dip: 0 });
   }
 
   // Lights drawn into a building or scenery sprite (see FIXTURES in config.js).
@@ -401,6 +401,7 @@ export default class Ambient {
         level *= [1, 0.35, 0.8, 0.25, 0.6][Math.floor(lamp.dip * 5) % 5];
       }
       lamp.glow.setAlpha(this.light.glow * level);
+      lamp.pool?.setAlpha(this.light.glow * level * 0.5);
     }
 
     // the flare never goes out: the fire burns on, its glow bright at night, faint by day

@@ -9,12 +9,14 @@ My portfolio as a small pixel-art game. Walk along the street and step into a bu
 | | |
 |---|---|
 | Walk | `←` `→` or `A` `D` |
+| Run | hold `Shift` |
+| Drop down from crates, the van or the cart | `↓` or `S` |
 | Jump | `Space`, `↑` or `W` |
 | Open a project | `E` beside a building, or click or tap the building |
 | Close a project | `Esc` or the close button |
 | Pause | `P` |
 
-On a phone or tablet, on-screen buttons appear.
+On a phone or tablet, on-screen buttons appear: hold ◀ or ▶ to walk (keep holding to run), ▲ to jump, ▼ to drop down, E to open. Held upright, a card under the game shows the building you are at.
 
 ## Run it locally
 
@@ -25,6 +27,8 @@ npm run build    # production build in dist/
 ```
 
 ## Change the content
+
+**About me** is the `about` entry at the top of [`public/projects.json`](public/projects.json). The welcome hall where you start opens it, as does the About me button and the top of the list page. Fill in the `TODO` fields; a link whose `url` still starts with `TODO` is hidden until it has a real address.
 
 Everything shown about a project is in [`public/projects.json`](public/projects.json): title, summary, results, tools, links, where its building stands (`x`, in pixels along a 3240-pixel street; buildings sit 320 apart) and which building it uses (`sprite`). Add an entry and a building appears; the list page updates too.
 
@@ -45,6 +49,10 @@ The wind turbines on the hills turn, and so do the two on the street. Clouds dri
 ## Art
 
 The art briefs are in [`public/assets/assets.md`](public/assets/assets.md) and the original renders in `art-src/`. `npm run assets` turns them into the sprites the game loads. Each source picture is pixel art on a regular grid, so the script finds that grid and reads back one colour per art pixel, with no resizing. It then removes the magenta background, merges the shades left by JPEG compression, packs buildings and props into sprite atlases, cuts the background into parallax layers and makes a daylight version of each. It also paints the blades out of the turbines drawn in the hills (the game turns rotors from `art-src/turbines.png` on their hubs instead), makes the rotor frames by rotating the rotor art without blurring it, rebuilds the crate stack so every crate rests flat, and draws the street paving as a seamless running bond in the stone tile's colours.
+
+## Sharing
+
+`public/og.png` is the picture shown when the site's link is pasted into LinkedIn, Slack or a message. To refresh it after the street changes, screenshot the game canvas at 2x zoom (960x540) and run `python3 tools/make_preview_image.py screenshot.png`. Missing pages show `404.html`.
 
 ## Built with
 

@@ -2,7 +2,47 @@
   "site": {
     "owner": "Karthik Rohit Kosuru",
     "tagline": "Battery and energy engineering projects.",
-    "github": "https://github.com/omlettehead22"
+    "github": "https://github.com/omlettehead22",
+    "url": "https://omlettehead22.github.io/Portfolio/"
+  },
+  "about": {
+    "id": "about",
+    "x": 110,
+    "sprite": "home_base",
+    "title": "About me",
+    "role": "TODO: your role, or the kind of role you are looking for",
+    "summary": "TODO: two or three sentences about who you are and what you work on.",
+    "results": [
+      "TODO: add a highlight",
+      "TODO: add a highlight",
+      "TODO: add a highlight"
+    ],
+    "tools": [
+      "TODO: add skills"
+    ],
+    "links": [
+      {
+        "label": "CV (PDF)",
+        "url": "TODO: link to your CV"
+      },
+      {
+        "label": "LinkedIn",
+        "url": "TODO: your LinkedIn profile"
+      },
+      {
+        "label": "Email",
+        "url": "TODO: mailto:your address"
+      },
+      {
+        "label": "GitHub",
+        "url": "https://github.com/omlettehead22"
+      }
+    ],
+    "labels": {
+      "results": "Highlights",
+      "tools": "Skills",
+      "links": "Contact"
+    }
   },
   "projects": [
     {

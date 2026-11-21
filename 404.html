@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found · {{owner}}</title>
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#0b1633" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body class="list-page">
+    <header class="topbar">
+      <span class="brand">{{owner}}</span>
+    </header>
+    <main class="list not-found">
+      {{thumb}}
+      <h1>This street doesn't go there</h1>
+      <p class="lede">The page you were looking for isn't here. It may have moved, or the link may be mistyped.</p>
+      <p class="actions">
+        <a class="btn primary" href="{{base}}">Back to the street</a>
+        <a class="btn" href="{{base}}projects.html">See the project list</a>
+      </p>
+    </main>
+  </body>
+</html>

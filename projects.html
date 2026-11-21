@@ -13,15 +13,18 @@
     <header class="topbar">
       <span class="brand">{{owner}}</span>
       <nav aria-label="Site">
-        <a class="btn" href="./">Play the game version</a>
+        <a class="btn" href="./"><span class="long">Play the game version</span><span class="short">Game</span></a>
         <a class="btn" href="{{github}}">GitHub</a>
       </nav>
     </header>
 
     <main class="list">
-      <h1>Projects</h1>
+      <h1>{{owner}}</h1>
+      <p class="role">{{role}}</p>
       <p class="lede">{{tagline}}</p>
       <!-- Filled in from public/projects.json when the site is built (see vite.config.js). -->
+      {{about}}
+      <h2 class="section-title">Projects</h2>
       {{projects}}
     </main>
   </body>

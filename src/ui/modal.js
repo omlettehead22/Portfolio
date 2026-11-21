@@ -5,6 +5,12 @@
 
 const $ = (id) => document.getElementById(id);
 
+const LABELS = { results: "Key results", tools: "Tools used", links: "Links" };
+
+// A link whose address is still a TODO placeholder is left out rather than
+// shown broken: it appears once the address is filled in.
+export const isReal = (link) => Boolean(link.url) && !/^\s*TODO/i.test(link.url);
+
 // Shown for a building that does not have its project yet.
 const DRAFT = {
   title: "Coming soon",
@@ -49,14 +55,19 @@ export function setupModal({ onOpen, onClose }) {
     const project = entry.draft ? { ...DRAFT, id: entry.id } : entry;
     $("pm-title").textContent = project.title;
     $("pm-summary").textContent = project.summary;
+    $("pm-role").textContent = project.role ?? "";
+    $("pm-role").hidden = !project.role;
+    for (const key of Object.keys(LABELS)) $(`pm-h-${key}`).textContent = project.labels?.[key] ?? LABELS[key];
     fillList($("pm-results"), project.results, (text) => text);
     fillList($("pm-tools"), project.tools, (text) => text);
-    fillList($("pm-links"), project.links, (link) => {
+    fillList($("pm-links"), project.links.filter(isReal), (link) => {
       const a = document.createElement("a");
       a.href = link.url;
       a.textContent = link.label;
-      a.target = "_blank";
-      a.rel = "noopener";
+      if (!link.url.startsWith("mailto:")) {
+        a.target = "_blank";
+        a.rel = "noopener";
+      }
       return a;
     });
     dialog.showModal();

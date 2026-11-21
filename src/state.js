@@ -1,7 +1,7 @@
 // Shared between the Phaser scenes and the HTML interface around them.
 
 // Held state of the on-screen touch buttons. Keyboard input is read inside the scene.
-export const controls = { left: false, right: false, jump: false };
+export const controls = { left: false, right: false, jump: false, down: false };
 
 // The world stands still while any of these is true.
 export const ui = { intro: true, paused: false, modal: false };

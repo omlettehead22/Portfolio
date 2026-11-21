@@ -4,6 +4,8 @@
 // Speeds are pixels per second, accelerations pixels per second squared.
 export const TUNING = {
   speed: 140,          // top walking speed
+  runSpeed: 230,       // top speed while running (hold Shift; on touch, keep holding a direction)
+  runAfterMs: 650,     // on touch, how long a direction is held before breaking into a run
   acceleration: 1050,  // how quickly the player gets up to speed (higher = snappier)
   friction: 1100,      // how quickly the player stops after letting go (lower = more slide)
   turnBoost: 1.8,      // extra push when reversing direction, so turning does not feel sluggish
@@ -16,6 +18,7 @@ export const TUNING = {
   jumpCut: 0.45,       // share of upward speed kept when the jump key is released early (tap = short hop)
   coyoteMs: 90,        // you can still jump this long after walking off an edge
   jumpBufferMs: 110,   // a jump pressed this long before landing still counts
+  dropMs: 250,         // after pressing down on a platform, it lets you through for this long
 
   interactRange: 70,   // how close (in pixels) to a building's middle you must be for "Press E"
 };
@@ -126,11 +129,13 @@ export const GROUND_SCALE = 2; // the paving, drawn at the same pixel size as th
 //   platform: true the player can jump up and stand on it (but walks past it freely);
 //                  or a list of [left, top, width] surfaces in sprite pixels, for shapes like a stack
 //   turbine: size  a wind turbine from turbines.png ("small", "medium", "large") with a turning rotor
+//   slab: width    a low concrete plinth that other things can stand on
+//   lift: pixels   stand this high off the ground (on a plinth, say)
+//   front: true    drawn in front of the props around it (a fence before tanks)
 //   glow: true     lights up at night
 // Buildings stand every 320 pixels from x = 480; each gap holds a small scene.
 export const SCENERY = [
-  // the welcome hall where you start
-  { x: 110, sprite: "home_base", atlas: "buildings", scale: 2 },
+  // the welcome hall where you start is the About building: see "about" in public/projects.json
   { x: 205, sprite: "lamp", scale: 2, glow: true },
   { x: 285, sprite: "bush" },
   { x: 345, sprite: "pine", scale: 2, back: true },
@@ -146,10 +151,14 @@ export const SCENERY = [
   { x: 1325, sprite: "bush" },
   // 1440 to 1760: substation by the hydrogen plant
   { x: 1630, sprite: "transformer", scale: 2 },
-  // 1760 to 2080: hydrogen storage and a forklift
-  { x: 1870, sprite: "h2_cylinder", scale: 2 },
-  { x: 1915, sprite: "lamp", scale: 2, glow: true },
-  { x: 1955, sprite: "forklift", scale: 2 },
+  // 1760 to 2080: the hydrogen plant's storage bank, three tanks on a plinth behind a fence
+  { x: 1898, slab: 118 },
+  { x: 1862, sprite: "h2_cylinder", scale: 2, lift: 5 },
+  { x: 1898, sprite: "h2_cylinder", scale: 2, lift: 5 },
+  { x: 1934, sprite: "h2_cylinder", scale: 2, lift: 5 },
+  { x: 1874, sprite: "fence", front: true },
+  { x: 1922, sprite: "fence", front: true },
+  { x: 1975, sprite: "lamp", scale: 2, glow: true },
   // 2080 to 2400: a quiet corner
   { x: 2215, sprite: "pine", scale: 2, back: true },
   { x: 2285, sprite: "fence" },
@@ -164,12 +173,40 @@ export const SCENERY = [
   { x: 3200, turbine: "small", scale: 2, back: true },
 ];
 
-// People standing around. `frame` is a name from CHARACTER_FRAMES.
+// People standing around. `frame` is a name from CHARACTER_FRAMES. Walk up to
+// one and they say their line: `keys` with a keyboard, `touch` on a touch screen.
 export const NPCS = [
-  { x: 655, frame: "npc_scientist", faceLeft: true },
-  { x: 1560, frame: "npc_delivery" },
-  { x: 2250, frame: "npc_technician", faceLeft: true },
+  {
+    x: 655,
+    frame: "npc_scientist",
+    faceLeft: true,
+    say: {
+      keys: "Every building is a project. Stand at a door and press E.",
+      touch: "Every building is a project. Tap one, or stand at its door and press E.",
+    },
+  },
+  {
+    x: 1560,
+    frame: "npc_delivery",
+    say: {
+      keys: "Long street! Hold Shift to run.",
+      touch: "Long street! Keep holding ▶ and you'll break into a run.",
+    },
+  },
+  {
+    x: 2250,
+    frame: "npc_technician",
+    faceLeft: true,
+    say: {
+      keys: "Hop up on the crates, the van or the cart. ↓ drops you back down.",
+      touch: "Hop up on the crates, the van or the cart. ▼ drops you back down.",
+    },
+  },
 ];
+export const TALK_RANGE = 64; // how close you must be for an NPC to speak
+
+// Shown over the player until they first walk a little way.
+export const START_HINT = { keys: "← → to walk", touch: "Hold ▶ to walk" };
 
 // Order of the 48x48 frames in public/assets/character.png (written by tools/process_assets.py).
 export const CHARACTER_FRAMES = {

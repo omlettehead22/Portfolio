@@ -13,7 +13,8 @@
     <header class="topbar">
       <span class="brand">{{owner}}</span>
       <nav aria-label="Site">
-        <a class="btn" href="projects.html">View as list</a>
+        <a class="btn" href="projects.html"><span class="long">View as list</span><span class="short">List</span></a>
+        <button class="btn" id="about-open" type="button" disabled>About me</button>
         <button class="btn" id="sound-toggle" type="button" aria-pressed="false">Sound: off</button>
         <button class="btn" id="pause-toggle" type="button" aria-pressed="false" disabled>Pause</button>
       </nav>
@@ -30,13 +31,25 @@
           <span id="mm-count" aria-live="polite"></span>
         </div>
 
-        <div id="prompt" hidden aria-hidden="true">Press <kbd>E</kbd> <span id="prompt-title"></span></div>
+        <div id="prompt" hidden aria-hidden="true"><span class="keys-only">Press <kbd>E</kbd></span><span class="touch-only">Tap <kbd>E</kbd></span> <span id="prompt-title"></span></div>
+        <div id="speech" class="bubble" hidden role="status"></div>
+        <div id="hint" class="bubble hint" hidden aria-hidden="true"></div>
 
         <div id="paused" class="veil" hidden>
           <p>Paused</p>
           <button class="btn primary" id="resume" type="button">Resume</button>
         </div>
       </div>
+
+      <!-- On a phone held upright there is room under the game: show the building you are at. -->
+      <section id="nearby" hidden aria-live="polite">
+        <div class="nb-text">
+          <p class="nb-kicker" id="nb-kicker"></p>
+          <p class="nb-title" id="nb-title"></p>
+          <p class="nb-summary" id="nb-summary"></p>
+        </div>
+        <button class="btn primary" id="nb-open" type="button">Open</button>
+      </section>
 
       <div id="touch" hidden>
         <div class="pad">
@@ -45,6 +58,7 @@
         </div>
         <div class="pad">
           <button type="button" data-tap="action" aria-label="Open the nearby project">E</button>
+          <button type="button" data-hold="down" aria-label="Drop down through a platform">▼</button>
           <button type="button" data-hold="jump" aria-label="Jump">▲</button>
         </div>
       </div>
@@ -52,17 +66,26 @@
       <section id="intro" aria-labelledby="intro-title">
         <div class="card">
           <h1 id="intro-title">{{owner}}</h1>
+          <p class="role">{{role}}</p>
           <p class="lede">{{tagline}} Walk along the street and step into a building to read about each one.</p>
 
           <h2>Controls</h2>
-          <dl class="controls">
+          <dl class="controls touch-only">
+            <div><dt>◀ ▶</dt><dd>Walk; keep holding to run</dd></div>
+            <div><dt>▲</dt><dd>Jump</dd></div>
+            <div><dt>▼</dt><dd>Drop down from crates, a van or a cart</dd></div>
+            <div><dt>E, or tap a building</dt><dd>Open the project</dd></div>
+          </dl>
+          <dl class="controls keys-only">
             <div><dt><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></dt><dd>Walk</dd></div>
+            <div><dt><kbd>Shift</kbd></dt><dd>Run</dd></div>
             <div><dt><kbd>Space</kbd>, <kbd>↑</kbd> or <kbd>W</kbd></dt><dd>Jump</dd></div>
+            <div><dt><kbd>↓</kbd> or <kbd>S</kbd></dt><dd>Drop down from crates, a van or a cart</dd></div>
             <div><dt><kbd>E</kbd></dt><dd>Open the project you are standing at</dd></div>
             <div><dt><kbd>Esc</kbd></dt><dd>Close a project</dd></div>
             <div><dt><kbd>P</kbd></dt><dd>Pause</dd></div>
           </dl>
-          <p class="hint">On a phone or tablet, use the on-screen buttons or tap a building.</p>
+          <p class="hint keys-only">On a phone or tablet, on-screen buttons appear, and you can tap a building.</p>
 
           <label class="check"><input type="checkbox" id="intro-sound" /> Sound effects</label>
 
@@ -83,12 +106,13 @@
       <article class="card">
         <button class="close" id="pm-close" type="button" aria-label="Close">✕</button>
         <h2 id="pm-title"></h2>
+        <p class="role" id="pm-role" hidden></p>
         <p class="lede" id="pm-summary"></p>
-        <h3>Key results</h3>
+        <h3 id="pm-h-results">Key results</h3>
         <ul id="pm-results"></ul>
-        <h3>Tools used</h3>
+        <h3 id="pm-h-tools">Tools used</h3>
         <ul class="chips" id="pm-tools"></ul>
-        <h3>Links</h3>
+        <h3 id="pm-h-links">Links</h3>
         <ul class="links" id="pm-links"></ul>
       </article>
     </dialog>

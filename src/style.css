@@ -507,3 +507,183 @@ dialog .card h2 {
     transition: none !important;
   }
 }
+
+/* --- shown only with a keyboard, or only on touch screens -------------------- */
+.touch .keys-only,
+body:not(.touch) .touch-only {
+  display: none !important;
+}
+
+/* long and short labels for the top-bar buttons */
+.btn .short {
+  display: none;
+}
+@media (max-width: 480px) {
+  .btn .long {
+    display: none;
+  }
+  .btn .short {
+    display: inline;
+  }
+}
+
+/* the role line under a name */
+.role {
+  margin: 0 0 0.3rem;
+  font: 600 0.9rem var(--mono);
+  color: var(--glow);
+}
+.role:empty {
+  display: none;
+}
+
+/* --- speech bubbles and the walk hint over the game ------------------------- */
+.bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: min(18rem, 80%);
+  padding: 0.35rem 0.6rem;
+  border: 2px solid var(--night);
+  border-radius: 6px;
+  background: #f3f1e6;
+  color: var(--night);
+  font: 600 0.75rem/1.35 var(--mono);
+  pointer-events: none;
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
+}
+.bubble::after {
+  /* the tail, pointing down at the speaker */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  translate: -50% 0;
+  border: 6px solid transparent;
+  border-top-color: var(--night);
+}
+.bubble.hint {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--teal);
+  white-space: nowrap;
+}
+.bubble.hint::after {
+  border-top-color: var(--teal);
+}
+
+/* the About hall on the minimap */
+.mm-home {
+  position: absolute;
+  top: 50%;
+  translate: -50% -50%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--teal);
+}
+
+/* --- phone card under the game ---------------------------------------------- */
+#nearby {
+  display: none;
+}
+@media (orientation: portrait) {
+  .touch #nearby:not([hidden]) {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: min(100% - 1.5rem, 32rem);
+    margin: 0.75rem auto 0;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+}
+.nb-text {
+  flex: 1;
+  min-width: 0;
+}
+.nb-text p {
+  margin: 0;
+}
+.nb-kicker {
+  font: 600 0.7rem var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal);
+}
+.nb-title {
+  font: 600 1rem var(--mono);
+}
+.nb-summary {
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#nb-open {
+  min-height: 44px;
+  padding: 0 1rem;
+}
+
+/* --- list page: the building beside each project ----------------------------- */
+.list > .role {
+  font-size: 1rem;
+}
+.section-title {
+  margin: 2rem 0 0;
+  font-size: 1.2rem;
+}
+.list article {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.list article .body {
+  flex: 1;
+  min-width: 0;
+}
+.thumb {
+  flex: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  margin-top: 0.25rem;
+}
+@media (max-width: 560px) {
+  .list article {
+    flex-direction: column;
+  }
+}
+
+/* --- the 404 page ----------------------------------------------------------- */
+.not-found {
+  text-align: center;
+}
+.not-found .thumb {
+  margin: 2rem auto 1rem;
+  scale: 2;
+  transform-origin: top center;
+  margin-bottom: calc(1rem + 108px);
+}
+.not-found .actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+/* three touch buttons on the right: keep them clear of each other on a 360px phone */
+@media (max-width: 400px) {
+  #touch button {
+    width: 54px;
+    height: 54px;
+  }
+  .pad {
+    gap: 0.45rem;
+  }
+}
