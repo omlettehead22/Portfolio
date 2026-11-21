@@ -567,7 +567,9 @@ export default class World extends Phaser.Scene {
     else if (moving) {
       player.play("walk", true);
       // legs keep pace with the ground speed
-      player.anims.timeScale = Phaser.Math.Clamp(Math.abs(body.velocity.x) / T.speed, 0.4, T.runSpeed / T.speed);
+      // (capped when running: these are walking legs, and at full running pace
+      // the cycle turns into a blur)
+      player.anims.timeScale = Phaser.Math.Clamp(Math.abs(body.velocity.x) / T.speed, 0.4, 1.4);
     } else player.play("idle", true);
     if (!moving || !onGround) player.anims.timeScale = 1;
   }

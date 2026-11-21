@@ -501,7 +501,7 @@ CHARACTER_BOXES = [
 # Frame numbers in character.png (mirrored in src/config.js).
 CHARACTER_FRAMES = ["idle0", "idle1", "walk0", "walk1", "walk2", "walk3", "jump_up", "jump_down",
                     "vest", "hoodie", "npc_scientist", "npc_technician", "npc_delivery",
-                    "npc_scientist_b", "npc_technician_b", "npc_delivery_b"]
+                    "npc_scientist_b", "npc_technician_b", "npc_delivery_b", "walk_pass"]
 FRAME = 48
 
 
@@ -528,6 +528,20 @@ def character():
         return out
 
     cells["idle0"], cells["idle1"] = cells["coat"], breathe(cells["coat"])
+
+    # The walk cycle is stride (walk0), passing, stride (walk2), passing. The
+    # passing pose is walk1 with the body lifted a pixel, the high point of a
+    # step. (walk3 in the sheet is drawn in a different style, so it is left
+    # out of the cycle.)
+    def lift(frame):
+        height = int((frame[..., 3] > 0).any(axis=1).sum())
+        legs = round(height * 0.28)
+        out = frame.copy()
+        out[: FRAME - legs - 1] = frame[1 : FRAME - legs]
+        out[FRAME - legs - 1] = frame[FRAME - legs]  # stretch the hip row, so no gap opens
+        return out
+
+    cells["walk_pass"] = lift(cells["walk1"])
     for npc in ("npc_scientist", "npc_technician", "npc_delivery"):
         cells[npc + "_b"] = breathe(cells[npc])
 

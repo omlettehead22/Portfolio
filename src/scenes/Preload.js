@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { ASSETS, CHARACTER_FRAMES as F } from "../config.js";
+import { ASSETS, CHARACTER_FRAMES as F, TUNING as T } from "../config.js";
 
 // Loads every asset and projects.json, reporting progress to the loading bar.
 export default class Preload extends Phaser.Scene {
@@ -39,10 +39,12 @@ export default class Preload extends Phaser.Scene {
 
     const frames = (list) => this.anims.generateFrameNumbers("character", { frames: list });
     this.anims.create({ key: "idle", frames: frames([F.idle0, F.idle1]), frameRate: 2, repeat: -1 });
+    // stride, passing, stride, passing; paced so one cycle covers one stride
+    // at walking speed (World scales it with the actual speed)
     this.anims.create({
       key: "walk",
-      frames: frames([F.walk0, F.walk1, F.walk2, F.walk3]),
-      frameRate: 9,
+      frames: frames([F.walk0, F.walk_pass, F.walk2, F.walk_pass]),
+      frameRate: (4 * T.speed) / T.stride,
       repeat: -1,
     });
     this.anims.create({ key: "rise", frames: frames([F.jump_up]), frameRate: 1 });

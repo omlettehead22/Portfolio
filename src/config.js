@@ -4,6 +4,8 @@
 // Speeds are pixels per second, accelerations pixels per second squared.
 export const TUNING = {
   speed: 140,          // top walking speed
+  stride: 32,          // how far one walk cycle (two steps) carries you: sets the walk animation's pace
+                       // so the feet stay planted instead of skating
   runSpeed: 230,       // top speed while running (hold Shift; on touch, keep holding a direction)
   runAfterMs: 650,     // on touch, how long a direction is held before breaking into a run
   acceleration: 1050,  // how quickly the player gets up to speed (higher = snappier)
@@ -217,6 +219,7 @@ export const CHARACTER_FRAMES = {
   npc_scientist: 10, npc_technician: 11, npc_delivery: 12,
   // each NPC's breathing frame
   npc_scientist_b: 13, npc_technician_b: 14, npc_delivery_b: 15,
+  walk_pass: 16, // walk1 with the body lifted a pixel: the passing pose of the walk cycle
 };
 
 // --- Assets ------------------------------------------------------------------
