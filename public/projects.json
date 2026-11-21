@@ -106,12 +106,88 @@
         }
       ]
     },
-    { "id": "pcm-lab", "x": 1120, "sprite": "pcm_lab", "draft": true },
-    { "id": "cold-station", "x": 1440, "sprite": "cold_station", "draft": true },
-    { "id": "hydrogen-plant", "x": 1760, "sprite": "hydrogen_plant", "draft": true },
-    { "id": "control-room", "x": 2080, "sprite": "control_room", "draft": true },
-    { "id": "sim-centre", "x": 2400, "sprite": "sim_centre", "draft": true },
-    { "id": "workshop", "x": 2720, "sprite": "workshop", "draft": true },
-    { "id": "library", "x": 3040, "sprite": "library", "draft": true }
+    {
+      "id": "pcm-lab",
+      "x": 1120,
+      "sprite": "pcm_lab",
+      "draft": true
+    },
+    {
+      "id": "cold-station",
+      "x": 1440,
+      "sprite": "cold_station",
+      "draft": true
+    },
+    {
+      "id": "hydrogen-plant",
+      "x": 1760,
+      "sprite": "hydrogen_plant",
+      "draft": true
+    },
+    {
+      "id": "control-room",
+      "x": 2080,
+      "sprite": "control_room",
+      "draft": true
+    },
+    {
+      "id": "sim-centre",
+      "x": 2400,
+      "sprite": "sim_centre",
+      "draft": true
+    },
+    {
+      "id": "workshop",
+      "x": 2720,
+      "sprite": "workshop",
+      "draft": true
+    },
+    {
+      "id": "publications",
+      "x": 3040,
+      "sprite": "library",
+      "kind": "publications",
+      "title": "Publications",
+      "summary": "Peer-reviewed papers I have co-authored.",
+      "papers": [
+        {
+          "title": "Phase Transition Microbeads for Thermal Energy Storage Applications",
+          "authors": [
+            "Abhijeet Chandra",
+            "Aryaman Vaish",
+            "Karthik Rohit Kosuru",
+            "L. Swetha",
+            "R. Parameshwaran",
+            "V. Vinayaka Ram"
+          ],
+          "type": "Conference paper",
+          "venue": "Recent Innovations and Developments in Mechanical Engineering (ICRIDME 2024), Lecture Notes in Mechanical Engineering, pp. 87–94",
+          "publisher": "Springer, Singapore",
+          "year": "2026",
+          "doi": "10.1007/978-981-95-8868-8_9",
+          "url": "https://link.springer.com/chapter/10.1007/978-981-95-8868-8_9",
+          "summary": "Palmitic acid, a phase change material, sealed inside calcium alginate shells by in-situ gelation of sodium alginate with calcium chloride, then characterised with FESEM, EDX, FTIR, XRD, DSC and TGA.",
+          "findings": [
+            "Near-spherical beads, 700–1200 μm across.",
+            "Melting enthalpy of about 80 J/g at a melting point of 56 °C (DSC).",
+            "Good thermal stability under TGA."
+          ]
+        },
+        {
+          "title": "TODO: add title",
+          "authors": [
+            "TODO: add authors"
+          ],
+          "type": "Journal article",
+          "venue": "International Journal of Hydrogen Energy",
+          "publisher": "Elsevier",
+          "year": "TODO: add year",
+          "doi": "TODO: add DOI",
+          "url": "https://www.sciencedirect.com/science/article/pii/S0360319926054169",
+          "summary": "TODO: add summary",
+          "findings": []
+        }
+      ]
+    }
   ]
 }

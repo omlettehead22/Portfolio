@@ -117,6 +117,31 @@
       </article>
     </dialog>
 
+    <dialog id="book" class="book-dialog" aria-labelledby="bk-heading">
+      <div class="book" id="bk">
+        <div class="bk-spread">
+          <section class="bk-page bk-left" aria-label="Contents">
+            <h2 id="bk-heading">Publications</h2>
+            <p class="bk-sub" id="bk-sub"></p>
+            <ol class="bk-index" id="bk-index"></ol>
+          </section>
+          <div class="bk-right">
+            <section class="bk-page bk-paper" id="bk-paper" tabindex="-1" aria-live="polite" aria-labelledby="bk-title"></section>
+          </div>
+          <div class="bk-cover" id="bk-cover" aria-hidden="true">
+            <div class="bk-face bk-cover-front"><span class="bk-emblem"></span><span>Publications</span></div>
+            <div class="bk-face bk-cover-back"></div>
+          </div>
+        </div>
+        <nav class="bk-nav" aria-label="Pages">
+          <button class="btn" id="bk-prev" type="button"><span aria-hidden="true">◀</span> Previous</button>
+          <span id="bk-count"></span>
+          <button class="btn" id="bk-next" type="button">Next <span aria-hidden="true">▶</span></button>
+        </nav>
+        <button class="close" id="bk-close" type="button" aria-label="Close">✕</button>
+      </div>
+    </dialog>
+
     <noscript>
       <p class="noscript">This page is a small game and needs JavaScript. <a href="projects.html">Read the project list instead.</a></p>
     </noscript>

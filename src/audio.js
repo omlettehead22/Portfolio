@@ -10,6 +10,11 @@ const SOUNDS = {
     { from: 440, to: 440, at: 0, len: 0.08 },
     { from: 660, to: 660, at: 0.08, len: 0.12 },
   ],
+  // a soft rustle for turning a page
+  page: [
+    { from: 900, to: 500, at: 0, len: 0.05 },
+    { from: 700, to: 300, at: 0.05, len: 0.08 },
+  ],
   close: [
     { from: 660, to: 660, at: 0, len: 0.08 },
     { from: 440, to: 440, at: 0.08, len: 0.12 },

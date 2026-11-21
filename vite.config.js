@@ -44,6 +44,42 @@ function section(p, frames, base, labels = {}) {
       </article>`;
 }
 
+// The publications library, as a list of papers. Unknown details (TODO) are left out.
+function publications(entry, frames, base, owner) {
+  if (!entry) return "";
+  const paper = (p) => {
+    const name = isTodo(p.title) ? `Article in ${p.venue}` : p.title;
+    const title = isTodo(p.url) ? esc(name) : `<a href="${esc(p.url)}">${esc(name)}</a>`;
+    const authors = (p.authors ?? [])
+      .filter((a) => !isTodo(a))
+      .map((a) => (a === owner ? `<strong>${esc(a)}</strong>` : esc(a)))
+      .join(", ");
+    const venue = [p.venue, p.publisher].filter((v) => !isTodo(v)).map(esc).join(". ");
+    const meta = [p.type, isTodo(p.year) ? null : p.year].filter(Boolean).map(esc).join(" · ");
+    const findings = (p.findings ?? []).filter((f) => !isTodo(f));
+    return `
+            <li>
+              <p class="pub-meta">${meta}</p>
+              <h3 class="pub-title">${title}</h3>
+              ${authors ? `<p class="pub-authors">${authors}</p>` : ""}
+              ${venue ? `<p class="pub-venue">${venue}</p>` : ""}
+              ${isTodo(p.summary) ? "" : `<p>${esc(p.summary)}</p>`}
+              ${findings.length ? `<ul>${list(findings, esc)}</ul>` : ""}
+              ${isTodo(p.doi) ? "" : `<p class="pub-doi">DOI <a href="https://doi.org/${esc(p.doi)}">${esc(p.doi)}</a></p>`}
+            </li>`;
+  };
+  return `
+      <h2 class="section-title">${esc(entry.title)}</h2>
+      <article id="${esc(entry.id)}" class="pubs">
+        ${thumbnail(entry.sprite, frames, base)}
+        <div class="body">
+          <p>${esc(entry.summary ?? "")}</p>
+          <ol class="pub-list">${entry.papers.map(paper).join("")}
+          </ol>
+        </div>
+      </article>`;
+}
+
 // Link-preview tags, so a link pasted into LinkedIn, Slack or a message shows
 // a picture of the street, a title and a description.
 function previewTags(site, title, path) {
@@ -81,7 +117,7 @@ function projectsHtml() {
         const { frames } = JSON.parse(readFileSync(atlasFile, "utf8"));
         const page = ctx.path.split("/").pop() || "index.html";
         const articles = projects
-          .filter((p) => !p.draft) // buildings still waiting for a project are left off the list
+          .filter((p) => !p.draft && !p.kind) // buildings still waiting for a project are left off the list
           .map((p) => section(p, frames, base))
           .join("\n");
         const title = html.match(/<title>(.*?)<\/title>/)?.[1] ?? site.owner;
@@ -95,6 +131,7 @@ function projectsHtml() {
         return filled(html)
           .replace("{{about}}", about ? section(about, frames, base, about.labels) : "")
           .replace("{{projects}}", articles)
+          .replace("{{publications}}", publications(projects.find((p) => p.kind === "publications"), frames, base, site.owner))
           .replace("{{thumb}}", thumbnail("library", frames, base))
           .replace("</head>", `${previewTags(site, filled(title), page === "index.html" ? "" : page)}</head>`);
       },

@@ -2,6 +2,7 @@ import { ui, isFrozen, store } from "./state.js";
 import { STORAGE, WORLD } from "./config.js";
 import { setSound, soundOn, play } from "./audio.js";
 import { setupModal } from "./ui/modal.js";
+import { setupBook } from "./ui/book.js";
 import { setupTouch } from "./ui/touch.js";
 import { fitGame } from "./scale.js";
 import { setupHud } from "./ui/hud.js";
@@ -59,7 +60,7 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // --- project window ----------------------------------------------------------
-const openModal = setupModal({
+const modalCallbacks = {
   onOpen(project) {
     ui.modal = true;
     touch.release();
@@ -75,7 +76,20 @@ const openModal = setupModal({
     play("close");
     focusGame();
   },
+};
+const openModal = setupModal(modalCallbacks);
+
+// The publications library opens a book rather than the project window.
+// The owner's name is filled in once projects.json has loaded.
+const site = { owner: "" };
+const openBook = setupBook({
+  onOpen: (entry) => modalCallbacks.onOpen(entry),
+  onClose: () => modalCallbacks.onClose(),
+  get owner() {
+    return site.owner;
+  },
 });
+const openEntry = (entry) => (entry.kind === "publications" ? openBook(entry) : openModal(entry));
 
 // --- touch buttons -----------------------------------------------------------
 const touch = setupTouch({ onAction: () => game?.events.emit("action") });
@@ -156,6 +170,7 @@ async function boot() {
 
   game.events.on("world-ready", (data) => {
     projects = data.projects;
+    site.owner = data.site?.owner ?? "";
     about = data.about ? { ...data.about, kind: "about" } : null;
     aboutBtn.disabled = !about;
     buildMinimap();
@@ -165,7 +180,7 @@ async function boot() {
     startBtn.focus({ preventScroll: true });
   });
 
-  game.events.on("open-project", openModal);
+  game.events.on("open-project", openEntry);
 
   // prompt, speech, hint, minimap marker and the phone card
   setupHud(game, { onOpen: () => game.events.emit("action") });
