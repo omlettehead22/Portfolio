@@ -40,7 +40,11 @@ export default class World extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, WORLD.width, VIEW.height);
     cam.setRoundPixels(true);
-    cam.startFollow(this.player, true);
+    // The camera is moved by hand once physics has placed the player (see
+    // followPlayer), so everything that depends on it sees the same position.
+    this.events.on("postupdate", this.followPlayer, this);
+    this.events.once("shutdown", () => this.events.off("postupdate", this.followPlayer, this));
+    this.followPlayer(0, 0);
 
     // Light follows the clock. Re-check now and then, and whenever the view is resized.
     this.refreshLight();
@@ -167,7 +171,9 @@ export default class World extends Phaser.Scene {
           ? item.platform.map(([sx, sy, sw]) => [left + sx * scale, top + sy * scale, sw * scale])
           : [[left + 3, top, img.displayWidth - 6]];
         for (const [zx, zy, zw] of surfaces) {
-          const zone = this.add.zone(zx + zw / 2, zy + 3, zw, 6);
+          // Deep enough that even a slow frame (see fps.min in game.js) cannot
+          // carry a falling player straight through it.
+          const zone = this.add.zone(zx + zw / 2, zy + 12, zw, 24);
           this.physics.add.existing(zone, true);
           const c = zone.body.checkCollision;
           c.down = c.left = c.right = false;
@@ -348,20 +354,30 @@ export default class World extends Phaser.Scene {
 
   // --- every frame -----------------------------------------------------------
 
-  update(time, delta) {
+  update(time) {
     const frozen = isFrozen();
     if (frozen !== this.frozen) this.setFrozen(frozen);
-
-    const cam = this.cameras.main;
-    for (const l of this.hills) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.hills);
-    for (const l of this.city) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.city);
     if (isCycling() && !frozen) this.refreshLight();
-    this.ambient.update(time, delta);
 
     if (!frozen) {
       this.movePlayer(time);
       this.watchPlayer();
     }
+  }
+
+  // Runs after physics has moved the player this frame. The camera follows the
+  // player's *rounded* position: following the exact position made the player
+  // wobble a pixel back and forth on screen while walking, because the camera
+  // and the sprite were each rounded to whole pixels separately. Everything
+  // that scrolls with the camera is then placed from the same position.
+  followPlayer(time, delta) {
+    const cam = this.cameras.main;
+    const width = this.scale.width;
+    cam.scrollX = Phaser.Math.Clamp(Math.round(this.player.x) - Math.floor(width / 2), 0, WORLD.width - width);
+
+    for (const l of this.hills) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.hills);
+    for (const l of this.city) l.tilePositionX = Math.round(cam.scrollX * PARALLAX.city);
+    this.ambient.update(time, delta);
     this.updateHud(cam);
   }
 
@@ -396,7 +412,11 @@ export default class World extends Phaser.Scene {
     const buffered = time - this.jumpPressedAt <= T.jumpBufferMs;
     const canJump = time - this.groundedAt <= T.coyoteMs;
     if (buffered && canJump && !this.rising) {
-      body.setVelocityY(-T.jump);
+      // Physics moves by each frame's real time, which makes a jump a little
+      // lower the longer the frames are. Adding half a frame of gravity to the
+      // take-off speed cancels that, so the jump is the same height at 30, 60
+      // or 144 frames a second.
+      body.setVelocityY(-(T.jump + (T.gravity * this.game.loop.delta) / 2000));
       this.rising = true;
       this.jumpPressedAt = -1e9;
       this.groundedAt = -1e9;

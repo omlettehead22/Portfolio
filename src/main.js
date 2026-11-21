@@ -158,21 +158,30 @@ async function boot() {
 
   game.events.on("open-project", openModal);
 
-  // The scene reports where the prompt and the minimap marker belong each frame.
+  // The scene reports where the prompt and the minimap marker belong each
+  // frame. Only touch the page when something has actually changed: writing
+  // styles every frame makes the browser redo its layout work each time.
   let lastNear;
+  let lastShow = false;
+  let lastTransform = "";
+  let lastLeft = "";
   game.events.on("hud", (hud) => {
     const zoom = game.registry.get("zoom") || 1;
-    const show = hud.near && !isFrozen();
-    prompt.hidden = !show;
+    const show = Boolean(hud.near) && !isFrozen();
+    if (show !== lastShow) prompt.hidden = !(lastShow = show);
     if (show) {
-      if (hud.near !== lastNear) promptTitle.textContent = `· ${hud.near.draft ? "Coming soon" : hud.near.title}`;
-      const half = prompt.offsetWidth / 2 + 4;
+      if (hud.near !== lastNear) {
+        promptTitle.textContent = `· ${hud.near.draft ? "Coming soon" : hud.near.title}`;
+        prompt.half = prompt.offsetWidth / 2 + 4; // measure once per building, not every frame
+      }
       const max = game.scale.width * zoom;
-      const x = Math.min(Math.max(hud.x * zoom, half), max - half);
-      prompt.style.transform = `translate(${x}px, ${hud.y * zoom}px) translate(-50%, -100%)`;
+      const x = Math.round(Math.min(Math.max(hud.x * zoom, prompt.half), max - prompt.half));
+      const transform = `translate(${x}px, ${Math.round(hud.y * zoom)}px) translate(-50%, -100%)`;
+      if (transform !== lastTransform) prompt.style.transform = lastTransform = transform;
     }
-    lastNear = hud.near;
-    mmPlayer.style.left = `${hud.progress * 100}%`;
+    lastNear = show ? hud.near : null;
+    const left = `${(hud.progress * 100).toFixed(1)}%`;
+    if (left !== lastLeft) mmPlayer.style.left = lastLeft = left;
   });
 }
 

@@ -225,8 +225,17 @@ BUILDINGS = {
 }
 
 
+# The gas flame on top of the hydrogen plant's flare stack: rows above this
+# (in the sprite) are cleared, and the game draws a burning one instead.
+FLARE_TOP_ROWS = 18
+
+
 def buildings():
-    pack_atlas({name: sprite("buildings.jpg", box) for name, box in BUILDINGS.items()}, "buildings")
+    sprites = {name: sprite("buildings.jpg", box) for name, box in BUILDINGS.items()}
+    plant = sprites["hydrogen_plant"]
+    stack = plant[:FLARE_TOP_ROWS, plant.shape[1] // 2 :]  # the stack is right of centre
+    stack[...] = 0
+    pack_atlas(sprites, "buildings")
 
 
 # --- props --------------------------------------------------------------------

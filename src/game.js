@@ -19,6 +19,9 @@ export function createGame(parent) {
     // takes at most one 1/60 s step per frame, so below 60 frames a second the
     // whole game ran in slow motion.
     physics: { default: "arcade", arcade: { gravity: { y: TUNING.gravity }, fixedStep: false } },
+    // A frame longer than 1/20 s (a hitch, a busy phone) is stepped as a normal
+    // one rather than in one big leap, so nothing tunnels through a platform.
+    fps: { min: 20 },
     audio: { noAudio: true }, // sound effects are synthesised in audio.js
     input: { activePointers: 3 },
     banner: false,

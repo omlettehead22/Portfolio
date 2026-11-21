@@ -78,6 +78,7 @@ export const AMBIENT = {
   planeEverySec: [35, 70],         // a blinking plane light at night
   lampFlickerEverySec: [6, 15],    // one street lamp stutters now and then
   rotorFps: { large: 7, medium: 9, small: 11 }, // rotor frames per second: big rotors turn slower
+  flameFps: 18,           // how often the gas flame's fire moves on
 };
 
 // Where each building's door is, in building pixels from its centre (before
@@ -97,10 +98,10 @@ export const DOORS = {
 
 // Lights drawn into the building art that glow at night, in building pixels
 // from the bottom centre of the sprite (before BUILDING_SCALE).
-// `flare` is a gas flame that flickers day and night and gives off smoke.
+// `flare` is where a burning gas flame sits (the middle of its base) and gives off smoke.
 export const FIXTURES = {
   battery_lab: { lights: [[10, -32]] },
-  hydrogen_plant: { flare: [23, -96] },
+  hydrogen_plant: { flare: [23, -90] },
   workshop: { lights: [[3, -52], [19, -8]] },
   control_room: { lights: [[-33, -48], [0, -48]] },
   home_base: { lights: [[-14, -23], [19, -23]] },

@@ -286,13 +286,20 @@ export default class Ambient {
     }
     if (fx.flare) {
       const [fx0, fy0] = at(fx.flare);
+      const fire = new Fire(this.scene, `flare${this.flares.length}`);
+      if (this.calm) fire.burn(40); // a settled shape, held still
+      const flame = this.scene.add
+        .image(fx0, fy0, fire.key)
+        .setOrigin(0.5, 1)
+        .setScale(scale)
+        .setDepth(DEPTH.fixture);
       const glow = this.scene.add
-        .image(fx0, fy0 + 4, "glow")
+        .image(fx0, fy0 - 8 * scale, "glow")
         .setBlendMode(Phaser.BlendModes.ADD)
         .setTint(0xff8a3c)
         .setDepth(DEPTH.fixture);
       const smoke = this.scene.add
-        .particles(fx0, fy0 - 6, "dust", {
+        .particles(fx0, fy0 - 16 * scale, "dust", {
           speedX: { min: A.wind * 1.5, max: A.wind * 3 },
           speedY: { min: -16, max: -9 },
           lifespan: { min: 2600, max: 3800 },
@@ -303,7 +310,7 @@ export default class Ambient {
           emitting: !this.calm,
         })
         .setDepth(DEPTH.fixture - 0.5);
-      this.flares.push({ glow, smoke });
+      this.flares.push({ glow, smoke, fire, flame, steps: 0 });
     }
   }
 
@@ -396,10 +403,17 @@ export default class Ambient {
       lamp.glow.setAlpha(this.light.glow * level);
     }
 
-    // the flare never goes out: bright at night, faint in daylight
+    // the flare never goes out: the fire burns on, its glow bright at night, faint by day
     for (const f of this.flares) {
+      if (!this.calm) {
+        const due = Math.floor((this.clock / 1000) * A.flameFps);
+        if (due > f.steps) {
+          f.fire.burn(Math.min(due - f.steps, 3));
+          f.steps = due;
+        }
+      }
       const flicker = this.calm ? 1 : 0.8 + 0.2 * Math.random();
-      f.glow.setAlpha((0.35 + 0.65 * this.light.night) * (this.frozen ? 1 : flicker));
+      f.glow.setAlpha((0.25 + 0.5 * this.light.night) * (this.frozen ? 1 : flicker));
       f.smoke.setParticleTint(mix(0x8d979f, 0x3a4458, this.light.night));
     }
 
@@ -481,4 +495,67 @@ function windowShare(hour) {
   const [h0, a] = WINDOW_LIGHTS[Math.max(i - 1, 0)];
   const [h1, b] = WINDOW_LIGHTS[Math.max(i, 1)];
   return a + (b - a) * Phaser.Math.Clamp((hour - h0) / (h1 - h0), 0, 1);
+}
+
+// A small pixel fire, the way the classic demo-scene fire works: heat is fed in
+// along the bottom row and each step every cell rises one row, cooling a little
+// and drifting with the wind. Heat is drawn in the four flame colours of the
+// building art.
+class Fire {
+  static W = 12;
+  static H = 20;
+  static MAX = 12;
+  static COLOURS = [null, 0xc55e3e, 0xd1844b, 0xe5ba74, 0xf6faf1]; // red, orange, yellow, white-hot
+
+  constructor(scene, key) {
+    const { W, H } = Fire;
+    this.key = key;
+    this.tex = scene.textures.createCanvas(key, W, H);
+    this.ctx = this.tex.getContext();
+    this.image = this.ctx.createImageData(W, H);
+    this.heat = new Uint8Array(W * H);
+    // hottest over the middle of the 6-pixel stack, cooler towards its lip,
+    // so only a small white-hot core shows, as in the painted flame
+    this.source = [0, 0, 5, 8, 10, 12, 12, 10, 8, 5, 0, 0];
+    this.burn(25); // start already alight
+  }
+
+  burn(steps) {
+    const { W, H, MAX } = Fire;
+    const heat = this.heat;
+    for (let s = 0; s < steps; s++) {
+      for (let x = 0; x < W; x++) {
+        // the gas feed flickers a little too
+        heat[(H - 1) * W + x] = Math.max(0, this.source[x] - (Math.random() < 0.35 ? 3 : 0));
+      }
+      for (let y = 0; y < H - 1; y++) {
+        for (let x = 0; x < W; x++) {
+          const r = Math.random();
+          const cool = r < 0.45 ? 0 : r < 0.95 ? 1 : 2;
+          const d = Math.random();
+          const dx = d < 0.1 ? -1 : d < 0.8 ? 0 : 1; // mostly straight up, leaning a little with the wind
+          const to = Math.min(W - 1, Math.max(0, x + dx));
+          heat[y * W + to] = Math.max(0, heat[(y + 1) * W + x] - cool);
+        }
+      }
+    }
+    this.draw(MAX);
+  }
+
+  draw(max) {
+    const px = this.image.data;
+    for (let i = 0; i < this.heat.length; i++) {
+      const h = this.heat[i];
+      const band = h === 0 ? 0 : Math.min(4, Math.ceil((h / max) * 4));
+      const c = Fire.COLOURS[band];
+      px[i * 4 + 3] = c === null ? 0 : 255;
+      if (c !== null) {
+        px[i * 4] = (c >> 16) & 255;
+        px[i * 4 + 1] = (c >> 8) & 255;
+        px[i * 4 + 2] = c & 255;
+      }
+    }
+    this.ctx.putImageData(this.image, 0, 0);
+    this.tex.refresh();
+  }
 }
