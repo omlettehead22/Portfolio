@@ -36,7 +36,7 @@ Buildings available: `battery_lab`, `pcm_lab`, `hydrogen_plant`, `cold_station`,
 
 A building waiting for its project is an entry with only `id`, `x`, `sprite` and `"draft": true`. It stands on the street and opens a "Coming soon" window, but is left off the list page and the visited count. To give it a project, add the other fields and delete `"draft": true`.
 
-**Publications** live in the library at the end of the street: the entry with `"kind": "publications"`. Each item in its `papers` list has `title`, `authors` (your own name is shown in bold), `type`, `venue`, `publisher`, `year`, `doi`, `url`, `summary` and `findings`. The library opens as a book whose cover swings open; ← → or the Previous/Next buttons turn the pages. A field still starting with `TODO` is simply left out, so a paper can go up with just its link.
+**Publications** live in the library at the end of the street: the entry with `"kind": "publications"`. Each item in its `papers` list has `title`, `authors` (your own name is shown in bold), `type`, `venue`, `publisher`, `year`, `doi`, `url`, `summary` and `findings`. The library opens as a pixel-art book (from `art-src/books.png`): its cover swings open and the pages turn through drawn frames; ← → or the Previous/Next buttons turn them. A closed book floats over the library door, and an open one once it has been visited. A field still starting with `TODO` is simply left out, so a paper can go up with just its link.
 
 Movement (speed, acceleration, friction, jump), the day/night timetable and the street scenery are in [`src/config.js`](src/config.js).
 

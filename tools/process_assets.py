@@ -25,6 +25,9 @@ Outputs:
   props.png + props.json                  atlas of every prop, tile, collectible and vehicle
   character.png                           48x48 frames, see CHARACTER_FRAMES
   ../favicon.png                          the battery prop, doubled
+  book/*.png + book/book.json             the publications book: cover, open spread, the
+                                          page-turn frames, parchment, and the small closed
+                                          and open books that float over the library door
 
 props.png also gets two things built from the art: "crates", a stack rebuilt from
 one crate so all three rest flat, and "tile_street", the paving, drawn in the
@@ -54,6 +57,7 @@ GRIDS = {
     "background.jpg": (480, 40),
     "characters.jpg": (240, 40),
     "turbines.png": (256, 24),
+    "books.png": (240, 40),
 }
 
 
@@ -804,10 +808,37 @@ def background():
     save(tile(gradient_map(city, DAY_CITY)), "bg_city_day.png")
 
 
+# The book sheet (art-src/books.png) is on the characters' grid: 240 art pixels
+# across. Boxes are in source-picture pixels.
+BOOK_SPRITES = {
+    "closed": (25, 22, 92, 100),       # small closed book: the door marker before a visit
+    "open": (114, 24, 232, 100),       # small open book: the marker once visited
+    "cover": (10, 122, 250, 425),      # the closed book that swings open
+    "spread": (260, 18, 505, 175),     # open and flat
+    "turn1": (767, 0, 1012, 178),      # the right page lifting
+    "turn2": (260, 182, 505, 362),     # ... rising
+    "turn3": (515, 178, 760, 362),     # ... over the spine
+    "paper": (612, 380, 787, 555),     # one parchment page
+}
+
+
+def books():
+    out = OUT / "book"
+    out.mkdir(exist_ok=True)
+    meta = {}
+    for key, box in BOOK_SPRITES.items():
+        spr = sprite("books.png", box)
+        Image.fromarray(spr).save(out / f"{key}.png", optimize=True)
+        meta[key] = {"w": spr.shape[1], "h": spr.shape[0]}
+        print(f"book/{key}.png  {spr.shape[1]}x{spr.shape[0]}")
+    (out / "book.json").write_text(json.dumps(meta, indent=1) + "\n")
+
+
 if __name__ == "__main__":
+    import sys
+
     OUT.mkdir(parents=True, exist_ok=True)
-    buildings()
-    props()
-    turbines()
-    character()
-    background()
+    steps = {f.__name__: f for f in (buildings, props, turbines, character, background, books)}
+    # a step's name runs just that step: python3 tools/process_assets.py books
+    for step in sys.argv[1:] or steps:
+        steps[step]()

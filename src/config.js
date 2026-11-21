@@ -234,6 +234,9 @@ export const ASSETS = {
     bg_city_lights: "bg_city_lights.png",
     bg_hills_lights: "bg_hills_lights.png",
     bg_beacons: "bg_beacons.png",
+    // the library's door marker: a closed book, open once visited
+    book_closed: "book/closed.png",
+    book_open: "book/open.png",
   },
   json: {
     turbine_rig: "turbine_rig.json", // rotor and light positions, written by tools/process_assets.py

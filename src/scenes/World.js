@@ -3,6 +3,7 @@ import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, ST
 
 // Where the "Press E" marker floats: just above head height, in front of the door.
 const MARKER_BOTTOM = WORLD.groundY - 46;
+const BOOK_MARKER_SCALE = 2;
 import { controls, isFrozen, store } from "../state.js";
 import { currentHour, isCycling, lightAt, mix } from "../daynight.js";
 import { play } from "../audio.js";
@@ -293,9 +294,15 @@ export default class World extends Phaser.Scene {
       // visited; a scroll over the About hall. Buildings still waiting for their
       // project have none.
       if (project.draft) return { project, sprite, door, marker: null };
-      const frame = project.kind === "about" ? "scroll" : visited.has(project.id) ? "star" : "bulb";
+      const seen = visited.has(project.id);
+      // the library's marker is a little book, drawn on the characters' grid: 2x
+      const [key, frame, scale] =
+        project.kind === "publications"
+          ? [seen ? "book_open" : "book_closed", undefined, BOOK_MARKER_SCALE]
+          : ["props", project.kind === "about" ? "scroll" : seen ? "star" : "bulb", 1];
       const marker = this.add
-        .image(door, MARKER_BOTTOM, "props", frame)
+        .image(door, MARKER_BOTTOM, key, frame)
+        .setScale(scale)
         .setOrigin(0.5, 1)
         .setDepth(DEPTH.glow);
       if (!this.calm) {
@@ -425,7 +432,9 @@ export default class World extends Phaser.Scene {
 
   openProject(project) {
     this.savePosition();
-    if (project.kind !== "about") this.buildings.find((b) => b.project === project)?.marker?.setFrame("star");
+    const marker = this.buildings.find((b) => b.project === project)?.marker;
+    if (project.kind === "publications") marker?.setTexture("book_open");
+    else if (project.kind !== "about") marker?.setFrame("star");
     this.game.events.emit("open-project", project);
   }
 
@@ -603,7 +612,8 @@ export default class World extends Phaser.Scene {
     hud.near = near ? near.project : null;
     if (near) {
       hud.x = near.door - cam.scrollX;
-      hud.y = MARKER_BOTTOM - 34; // above the marker
+      // above the marker (and its 4-pixel bob), however tall the marker is
+      hud.y = MARKER_BOTTOM - Math.max(34, (near.marker?.displayHeight ?? 0) + 12);
     }
     hud.next = next ? { project: next.project, dir: Math.sign(next.door - px) } : null;
 

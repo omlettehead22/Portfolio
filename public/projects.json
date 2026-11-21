@@ -174,18 +174,28 @@
           ]
         },
         {
-          "title": "TODO: add title",
+          "title": "Physics-Informed Cascade Neural Network for Reliable Prediction of CO2/H2O Co-Electrolysis in SOEC",
           "authors": [
-            "TODO: add authors"
+            "Muwang Cao",
+            "Nikhil Kumar Chidem",
+            "Abtin Rahbari",
+            "Htike Htike Zaw",
+            "Hassan Lawal",
+            "Karthik Rohit Kosuru",
+            "Mingming Zhu"
           ],
           "type": "Journal article",
-          "venue": "International Journal of Hydrogen Energy",
-          "publisher": "Elsevier",
-          "year": "TODO: add year",
-          "doi": "TODO: add DOI",
+          "venue": "International Journal of Hydrogen Energy, vol. 295, article 158778",
+          "publisher": "Elsevier (open access)",
+          "year": "2026",
+          "doi": "10.1016/j.ijhydene.2026.158778",
           "url": "https://www.sciencedirect.com/science/article/pii/S0360319926054169",
-          "summary": "TODO: add summary",
-          "findings": []
+          "summary": "A neural network for predicting how a solid oxide electrolysis cell performs when it splits steam and CO2 together into syngas. Its outputs feed into each other in the order the chemistry happens, the training balances outputs of very different sizes automatically, and a physics-based part keeps predictions within mass and energy conservation while learning hidden losses.",
+          "findings": [
+            "Over 99% prediction accuracy, ahead of ANN, CNN, cascade-forward and PINN models, checked against independent experiments.",
+            "Estimates Faradaic efficiency and non-ideal heat loss that are not measured directly.",
+            "Mass-conservation residual cut from 9.02% to 3.21% (mean relative)."
+          ]
         }
       ]
     }
