@@ -1,0 +1,50 @@
+{
+ "elder": {
+  "frames": 4,
+  "w": 25,
+  "h": 40,
+  "anchor": 10
+ },
+ "valve": {
+  "frames": 6,
+  "w": 32,
+  "h": 42,
+  "anchor": 11
+ },
+ "laptop": {
+  "frames": 4,
+  "w": 38,
+  "h": 43,
+  "anchor": 18
+ },
+ "vest": {
+  "frames": 8,
+  "w": 25,
+  "h": 44,
+  "anchor": 13
+ },
+ "trolley": {
+  "frames": 6,
+  "w": 33,
+  "h": 35,
+  "anchor": 16
+ },
+ "ladder": {
+  "frames": 4,
+  "w": 26,
+  "h": 50,
+  "anchor": 14
+ },
+ "bench": {
+  "frames": 4,
+  "w": 38,
+  "h": 36,
+  "anchor": 20
+ },
+ "bike": {
+  "frames": 4,
+  "w": 46,
+  "h": 46,
+  "anchor": 22
+ }
+}

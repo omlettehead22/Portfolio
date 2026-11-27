@@ -25,6 +25,7 @@ Outputs:
   props.png + props.json                  atlas of every prop, tile, collectible and vehicle
   character.png                           48x48 frames, see CHARACTER_FRAMES
   ../favicon.png                          the battery prop, doubled
+  npcs.png + npcs.json                    the animated street people (art-src/npcs_a.jpg, npcs_b.jpg)
   book/*.png + book/book.json             the publications book: cover, open spread, the
                                           page-turn frames, parchment, and the small closed
                                           and open books that float over the library door
@@ -58,6 +59,8 @@ GRIDS = {
     "characters.jpg": (240, 40),
     "turbines.png": (256, 24),
     "books.png": (240, 40),
+    "npcs_a.jpg": (200, 48),
+    "npcs_b.jpg": (200, 48),
 }
 
 
@@ -834,11 +837,91 @@ def books():
     (out / "book.json").write_text(json.dumps(meta, indent=1) + "\n")
 
 
+# The street people: two sheets on a 200 grid (characters about 40 art pixels
+# tall, so they draw at 1x next to the player). Each row is one animation, its
+# frames in equal columns. Rows: (sheet, y0, y1, columns, name, frames used,
+# anchor). The anchor is what holds still between frames: "head" for people who
+# walk, "base" for people with a desk, bench, ladder or valve.
+NPC_ROWS = [
+    ("npcs_a.jpg", 30, 246, 6, "elder", 4, "base"),
+    ("npcs_a.jpg", 270, 498, 6, "valve", 6, "base"),
+    ("npcs_a.jpg", 521, 753, 4, "laptop", 4, "base"),
+    ("npcs_a.jpg", 772, 1009, 8, "vest", 8, "head"),
+    ("npcs_b.jpg", 35, 226, 6, "trolley", 6, "base"),
+    ("npcs_b.jpg", 246, 517, 4, "ladder", 4, "base"),
+    ("npcs_b.jpg", 542, 738, 4, "bench", 4, "base"),
+    ("npcs_b.jpg", 768, 1014, 4, "bike", 4, "base"),
+]
+
+
+def row_boxes(sheet, y0, y1, cols):
+    """Frame boxes in one row of a sheet. Frames can be wider than an equal
+    column (a valve wheel, a trolley), so each separate shape in the row goes
+    to the column its middle falls in, and a frame's box is its shapes' extent."""
+    src = np.asarray(Image.open(SRC / sheet).convert("RGB"), dtype=int)[y0:y1]
+    width = src.shape[1]
+    solid = ~((src[..., 0] > 170) & (src[..., 2] > 170) & (src[..., 1] < 110))
+    solid = ndimage.binary_opening(solid, iterations=2)
+    labels, n = ndimage.label(ndimage.binary_closing(solid, iterations=2))
+    boxes = [[width, y1, 0, y0] for _ in range(cols)]
+    for sl in ndimage.find_objects(labels):
+        ys, xs = sl
+        if (ys.stop - ys.start) * (xs.stop - xs.start) < 30:
+            continue
+        col = min(cols - 1, int((xs.start + xs.stop) / 2 / (width / cols)))
+        b = boxes[col]
+        b[0], b[2] = min(b[0], xs.start), max(b[2], xs.stop)
+        b[1], b[3] = min(b[1], y0 + ys.start), max(b[3], y0 + ys.stop)
+    return [tuple(b) for b in boxes if b[2] > b[0]]
+
+
+def sprite_masked(sheet, box):
+    """A sprite cut by its box, keeping only shapes that are mostly inside the
+    box: bits of a neighbouring frame poking in at the sides are dropped."""
+    spr = sprite(sheet, box)
+    labels, n = ndimage.label(spr[..., 3] > 0, np.ones((3, 3)))
+    if n > 1:
+        sizes = ndimage.sum(np.ones(labels.shape), labels, range(1, n + 1))
+        for i, (sl, size) in enumerate(zip(ndimage.find_objects(labels), sizes), start=1):
+            at_side = sl[1].start == 0 or sl[1].stop == spr.shape[1]
+            if at_side and size < 0.06 * sizes.max():
+                spr[labels == i] = 0
+    ys, xs = np.where(spr[..., 3] > 0)
+    return spr[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+
+
+def npcs():
+    sprites, meta = {}, {}
+    for sheet, y0, y1, cols, name, count, anchor in NPC_ROWS:
+        frames = [sprite_masked(sheet, box) for box in row_boxes(sheet, y0, y1, cols)[:count]]
+
+        # where each frame's anchor sits, measured from the frame's left edge
+        def anchor_x(spr):
+            solid = spr[..., 3] > 0
+            rows = solid[: max(1, spr.shape[0] // 3)] if anchor == "head" else solid[-max(1, spr.shape[0] // 4) :]
+            xs = np.where(rows.any(axis=0))[0]
+            return (xs.min() + xs.max()) / 2
+
+        ax = [anchor_x(f) for f in frames]
+        left = max(round(a) for a in ax)
+        right = max(f.shape[1] - round(a) for f, a in zip(frames, ax))
+        h = max(f.shape[0] for f in frames)
+        for i, (f, a) in enumerate(zip(frames, ax)):
+            out = np.zeros((h, left + right, 4), dtype=np.uint8)
+            x = left - round(a)
+            out[h - f.shape[0] :, x : x + f.shape[1]] = f
+            sprites[f"{name}{i}"] = out
+        meta[name] = {"frames": count, "w": left + right, "h": h, "anchor": left}
+        print(f"npc {name:8s} {count} frames  {left + right}x{h}")
+    pack_atlas(sprites, "npcs", width=512)
+    (OUT / "npcs_meta.json").write_text(json.dumps(meta, indent=1) + "\n")
+
+
 if __name__ == "__main__":
     import sys
 
     OUT.mkdir(parents=True, exist_ok=True)
-    steps = {f.__name__: f for f in (buildings, props, turbines, character, background, books)}
+    steps = {f.__name__: f for f in (buildings, props, turbines, character, background, books, npcs)}
     # a step's name runs just that step: python3 tools/process_assets.py books
     for step in sys.argv[1:] or steps:
         steps[step]()

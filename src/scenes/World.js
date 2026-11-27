@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, CHARACTER_FRAMES, STORAGE, BUILDING_SCALE, GROUND_SCALE, DOORS, TALK_RANGE } from "../config.js";
+import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, STORAGE, BUILDING_SCALE, GROUND_SCALE, DOORS, TALK_RANGE } from "../config.js";
 
 // Where the "Press E" marker floats: just above head height, in front of the door.
 const MARKER_BOTTOM = WORLD.groundY - 46;
@@ -8,6 +8,7 @@ import { controls, isFrozen, store } from "../state.js";
 import { currentHour, isCycling, lightAt, mix } from "../daynight.js";
 import { play } from "../audio.js";
 import Ambient from "./ambient.js";
+import People from "./people.js";
 
 const DEPTH = { sky: 0, stars: 1, sun: 1.5, hills: 2, city: 3, back: 4, ground: 5, pool: 5.1, shadow: 5.2, building: 6, prop: 7, glow: 8, npc: 9, player: 10 };
 
@@ -313,31 +314,13 @@ export default class World extends Phaser.Scene {
   }
 
   addPeople() {
-    this.npcs = [];
-    for (const npc of NPCS) {
-      const frame = CHARACTER_FRAMES[npc.frame];
-      if (frame === undefined) continue;
-      const sprite = this.add
-        .sprite(npc.x, WORLD.groundY, "character", frame)
-        .setOrigin(0.5, 1)
-        .setFlipX(!!npc.faceLeft)
-        .setDepth(DEPTH.npc);
-      // breathe, each on their own rhythm
-      if (!this.calm && this.anims.exists(npc.frame)) {
-        sprite.play({ key: npc.frame, startFrame: Phaser.Math.Between(0, 1), delay: Phaser.Math.Between(0, 900) });
-      }
-      this.lit.push(sprite);
-      this.npcs.push({ sprite, faceLeft: !!npc.faceLeft, say: npc.say });
-      this.addShadow(npc.x, 16);
-    }
-  }
-
-  // People turn to look at you as you walk past.
-  watchPlayer() {
-    for (const npc of this.npcs) {
-      const d = this.player.x - npc.sprite.x;
-      npc.sprite.setFlipX(Math.abs(d) < 90 ? d < 0 : npc.faceLeft);
-    }
+    this.people = new People(this, NPCS, {
+      calm: this.calm,
+      depth: DEPTH.npc,
+      addShadow: (x, w) => this.addShadow(x, w),
+      lit: this.lit,
+    });
+    this.npcs = this.people.all; // the ones with a line to say are looked up in updateHud
   }
 
   addPlayer() {
@@ -467,14 +450,14 @@ export default class World extends Phaser.Scene {
 
   // --- every frame -----------------------------------------------------------
 
-  update(time) {
+  update(time, delta) {
     const frozen = isFrozen();
     if (frozen !== this.frozen) this.setFrozen(frozen);
     if (isCycling() && !frozen) this.refreshLight();
 
     if (!frozen) {
       this.movePlayer(time);
-      this.watchPlayer();
+      this.people.update(this.player.x, Math.min(delta, 50) / 1000);
     }
   }
 
@@ -621,7 +604,8 @@ export default class World extends Phaser.Scene {
     hud.talk = null;
     for (const npc of this.npcs) {
       if (npc.say && Math.abs(npc.sprite.x - px) <= TALK_RANGE) {
-        hud.talk = { say: npc.say, x: npc.sprite.x - cam.scrollX, y: WORLD.groundY - 42 };
+        const top = npc.cfg.sheet ? npc.sprite.height + 2 : 42; // over their head
+        hud.talk = { say: npc.say, x: npc.sprite.x - cam.scrollX, y: WORLD.groundY - Math.max(42, top) };
         break;
       }
     }

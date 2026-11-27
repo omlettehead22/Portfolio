@@ -177,33 +177,69 @@ export const SCENERY = [
 
 // People standing around. `frame` is a name from CHARACTER_FRAMES. Walk up to
 // one and they say their line: `keys` with a keyboard, `touch` on a touch screen.
+// The people on the street, from public/assets/npcs.png (tools/process_assets.py,
+// "npcs"). Each is drawn at 1x, standing on the pavement at x.
+//   sheet:    which animation in npcs.png (see npcs_meta.json); or frame: a still
+//             pose from character.png (the older sheet)
+//   play:     frame order of the loop, at fps; rest: a pause in ms between loops
+//   talkFrame: the frame shown while they speak to you (looking up from work)
+//   turns:    turns to face you as you pass (only people without a desk, bench...)
+//   walk:     paces between from and to at speed (px/s); stops while you are near
+//             (still: standing frame, near: frame shown then, such as a wave)
+//   ride:     crosses the whole street at speed, and comes round again
+//   say:      what they tell you when you stand by them
 export const NPCS = [
   {
     x: 655,
-    frame: "npc_scientist",
+    sheet: "elder",
+    play: [1, 2, 3, 2],
+    fps: 3,
+    rest: 1200,
+    talkFrame: 0,
     faceLeft: true,
+    turns: true,
     say: {
       keys: "Every building is a project. Stand at a door and press E.",
       touch: "Every building is a project. Tap one, or stand at its door and press E.",
     },
   },
   {
+    sheet: "trolley",
+    walk: { from: 1050, to: 1200, speed: 24 },
+    play: [0, 1, 2, 3, 4, 5],
+    fps: 7,
+  },
+  {
+    sheet: "vest",
+    walk: { from: 1350, to: 1530, speed: 30, still: 5, near: 6 },
+    play: [0, 1, 2, 3, 4],
+    fps: 7,
+  },
+  {
     x: 1560,
     frame: "npc_delivery",
+    turns: true,
     say: {
       keys: "Long street! Hold Shift to run.",
       touch: "Long street! Keep holding ▶ and you'll break into a run.",
     },
   },
   {
-    x: 2250,
-    frame: "npc_technician",
-    faceLeft: true,
+    x: 1808,
+    sheet: "valve",
+    play: [0, 1, 2, 3, 4, 3, 2, 1],
+    fps: 6,
+    rest: 900,
+    talkFrame: 5,
     say: {
       keys: "Hop up on the crates, the van or the cart. ↓ drops you back down.",
       touch: "Hop up on the crates, the van or the cart. ▼ drops you back down.",
     },
   },
+  { x: 2165, sheet: "laptop", play: [0, 2, 0, 2, 1, 0, 2, 3], fps: 4 },
+  { x: 2672, sheet: "ladder", play: [0, 1], fps: 2.5 },
+  { x: 2972, sheet: "bench", play: [0, 1, 2, 3], fps: 6, rest: 2600 },
+  { sheet: "bike", ride: { speed: 70, x: 300 }, play: [0, 1, 2, 3], fps: 8 },
 ];
 export const TALK_RANGE = 64; // how close you must be for an NPC to speak
 
@@ -216,7 +252,7 @@ export const CHARACTER_FRAMES = {
   walk0: 2, walk1: 3, walk2: 4, walk3: 5,
   jump_up: 6, jump_down: 7,
   vest: 8, hoodie: 9, // the same engineer in other outfits (standing pose only)
-  npc_scientist: 10, npc_technician: 11, npc_delivery: 12,
+  npc_scientist: 10, npc_technician: 11, npc_delivery: 12, // still poses (npc_delivery is on the street)
   // each NPC's breathing frame
   npc_scientist_b: 13, npc_technician_b: 14, npc_delivery_b: 15,
   walk_pass: 16, // walk1 with the body lifted a pixel: the passing pose of the walk cycle
@@ -239,12 +275,14 @@ export const ASSETS = {
     book_open: "book/open.png",
   },
   json: {
+    npcs_meta: "npcs_meta.json",
     turbine_rig: "turbine_rig.json", // rotor and light positions, written by tools/process_assets.py
   },
   sheets: {
     character: { file: "character.png", frameWidth: 48, frameHeight: 48 },
   },
   atlases: {
+    npcs: { image: "npcs.png", data: "npcs.json" }, // the street people (NPCS)
     buildings: { image: "buildings.png", data: "buildings.json" },
     props: { image: "props.png", data: "props.json" },
     turbines: { image: "turbines.png", data: "turbines.json" },
