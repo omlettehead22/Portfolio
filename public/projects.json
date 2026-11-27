@@ -50,26 +50,35 @@
       "x": 480,
       "sprite": "battery_lab",
       "title": "PackTherm",
-      "summary": "A battery thermal management design toolkit that compares cooling layouts for cylindrical-cell EV packs.",
+      "role": "Grown from my MSc thesis model (MATLAB) into a Python tool and a web app that runs in the browser",
+      "summary": "PackTherm helps a battery engineer choose how to cool a pack of cylindrical cells: air, a cold plate or a side ribbon, with or without phase-change material or a chiller. Give it a cell, a duty and your limits; it simulates every combination in a packed module and shows which designs pass, what they add in mass and what they cost to run, in under a minute in fast mode.",
       "results": [
-        "Cell model validated against 48 blind tests on a commercial cell from 25 °C down to −20 °C, with a median surface-temperature error of 0.65 K RMSE.",
-        "Road-trip study on a 61 kWh LG M50 pack: 39 cooling designs simulated, 23 feasible.",
-        "Liquid cooling in that study costs about 0.05 % of the energy moved, against 0.29 % for the lightest forced-air design."
+        "Checked against measured data on five commercial cells: 48 blind tests on a Panasonic 18650 from 25 °C down to −20 °C, to a median surface-temperature error of 0.65 K, and the LG M50's core temperature, measured inside the cell, to 0.7–1.4 K.",
+        "On a 61 kWh LG M50 pack on a 35 °C motorway trip and rapid charge: 39 cooling designs, 24 feasible. Liquid cooling costs about 0.1 % of the energy moved against 1.9 % for the air design that passes, and an uncooled pack reaches 70 °C.",
+        "Fits a cell model to test data: three public cells fitted and checked on tests they never saw (74 on an LG HG2, to a median voltage error of 36.6 mV), and a cold-weather fix that cut an LFP cell's −12 °C error by about two thirds.",
+        "Runs in the visitor's browser (Python in WebAssembly through Pyodide), and as a command-line tool, a Python library and an HTTP API, with over 300 tests in CI."
       ],
       "tools": [
         "Python",
         "NumPy",
         "SciPy",
         "pandas",
+        "pymoo",
         "FastAPI",
+        "Docker",
         "React",
         "TypeScript",
-        "Pyodide"
+        "Pyodide",
+        "GitHub Actions"
       ],
       "links": [
         {
           "label": "Try it in the browser",
           "url": "https://omlettehead22.github.io/PackTherm/"
+        },
+        {
+          "label": "How it is validated",
+          "url": "https://github.com/omlettehead22/PackTherm#validation"
         },
         {
           "label": "Source on GitHub",
