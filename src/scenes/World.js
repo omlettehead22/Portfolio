@@ -3,7 +3,7 @@ import { TUNING as T, VIEW, WORLD, PARALLAX, SCENERY, NPCS, STORAGE, BUILDING_SC
 
 // Where the "Press E" marker floats: just above head height, in front of the door.
 const MARKER_BOTTOM = WORLD.groundY - 46;
-const BOOK_MARKER_SCALE = 2;
+const BOOK_MARKER_SCALE = 1;
 import { controls, isFrozen, store } from "../state.js";
 import { currentHour, isCycling, lightAt, mix } from "../daynight.js";
 import { play } from "../audio.js";
@@ -296,18 +296,30 @@ export default class World extends Phaser.Scene {
       // project have none.
       if (project.draft) return { project, sprite, door, marker: null };
       const seen = visited.has(project.id);
-      // the library's marker is a little book, drawn on the characters' grid: 2x
+      // the library's marker is a little closed book, drawn on the characters' grid: 1x
       const [key, frame, scale] =
         project.kind === "publications"
-          ? [seen ? "book_open" : "book_closed", undefined, BOOK_MARKER_SCALE]
+          ? ["book_closed", undefined, BOOK_MARKER_SCALE]
           : ["props", project.kind === "about" ? "scroll" : seen ? "star" : "bulb", 1];
       const marker = this.add
         .image(door, MARKER_BOTTOM, key, frame)
         .setScale(scale)
         .setOrigin(0.5, 1)
         .setDepth(DEPTH.glow);
+      const bobbing = [marker];
+      if (project.kind === "publications") {
+        // the book is dark red on red brick: a soft warm glow behind it lifts it
+        // off the wall, as the bulb and star light themselves
+        const glow = this.add
+          .image(door, MARKER_BOTTOM - marker.displayHeight / 2, "glow_small")
+          .setScale(3)
+          .setAlpha(0.55)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(DEPTH.glow - 0.1);
+        bobbing.push(glow);
+      }
       if (!this.calm) {
-        this.tweens.add({ targets: marker, y: marker.y - 4, duration: 1100, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+        this.tweens.add({ targets: bobbing, y: "-=4", duration: 1100, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
       }
       return { project, sprite, door, marker };
     });
@@ -416,8 +428,7 @@ export default class World extends Phaser.Scene {
   openProject(project) {
     this.savePosition();
     const marker = this.buildings.find((b) => b.project === project)?.marker;
-    if (project.kind === "publications") marker?.setTexture("book_open");
-    else if (project.kind !== "about") marker?.setFrame("star");
+    if (project.kind !== "about" && project.kind !== "publications") marker?.setFrame("star");
     this.game.events.emit("open-project", project);
   }
 

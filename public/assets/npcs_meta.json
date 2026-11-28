@@ -31,9 +31,9 @@
  },
  "ladder": {
   "frames": 4,
-  "w": 26,
+  "w": 23,
   "h": 50,
-  "anchor": 14
+  "anchor": 22
  },
  "bench": {
   "frames": 4,

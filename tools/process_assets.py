@@ -841,14 +841,15 @@ def books():
 # tall, so they draw at 1x next to the player). Each row is one animation, its
 # frames in equal columns. Rows: (sheet, y0, y1, columns, name, frames used,
 # anchor). The anchor is what holds still between frames: "head" for people who
-# walk, "base" for people with a desk, bench, ladder or valve.
+# walk, "base" for people with a desk, bench or valve, "rail" for the ladder
+# (its right-hand rail, so the ladder stays put while he climbs).
 NPC_ROWS = [
     ("npcs_a.jpg", 30, 246, 6, "elder", 4, "base"),
     ("npcs_a.jpg", 270, 498, 6, "valve", 6, "base"),
     ("npcs_a.jpg", 521, 753, 4, "laptop", 4, "base"),
     ("npcs_a.jpg", 772, 1009, 8, "vest", 8, "head"),
     ("npcs_b.jpg", 35, 226, 6, "trolley", 6, "base"),
-    ("npcs_b.jpg", 246, 517, 4, "ladder", 4, "base"),
+    ("npcs_b.jpg", 246, 517, 4, "ladder", 4, "rail"),
     ("npcs_b.jpg", 542, 738, 4, "bench", 4, "base"),
     ("npcs_b.jpg", 768, 1014, 4, "bike", 4, "base"),
 ]
@@ -890,14 +891,62 @@ def sprite_masked(sheet, box):
     return spr[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
 
 
+def ladder_one_outfit(frames):
+    """The climber's last two frames have him in an orange vest and a teal
+    jacket; the first two in blue overalls. Repaint the jacket and vest (not the
+    hard hat) in the overalls' blues, matched by brightness, so he climbs in one
+    outfit."""
+    def body_blues(spr):
+        rgb = spr[..., :3].astype(int)
+        r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+        return (spr[..., 3] > 0) & (b > r + 60) & (b > g) & (g > r)  # not the ladder's greys
+
+    ref = frames[1]
+    lum = lambda c: c[..., 0] * 0.3 + c[..., 1] * 0.59 + c[..., 2] * 0.11
+    blues = ref[..., :3][body_blues(ref)].astype(float)  # every overalls pixel
+    blues = blues[np.argsort(lum(blues))]
+    out = [frames[0], frames[1]]
+    for spr in frames[2:]:
+        spr = spr.copy()
+        rgb = spr[..., :3].astype(int)
+        r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+        solid = spr[..., 3] > 0
+        orange = (r > 120) & (r > g + 20) & (g > b + 10)
+        teal = (g > r + 40) & (g >= 0.85 * b)  # green-blue jacket; the ladder and jeans are bluer
+        # the hard hat is the orange at the top: keep everything above its brim
+        hat_rows = np.where((solid & orange).any(axis=1))[0]
+        brim = hat_rows.min() + 8 if len(hat_rows) else 0
+        rows = np.arange(spr.shape[0])[:, None]
+        blue_lum = lum(blues)
+        for part in (orange, teal):
+            paint = solid & part & (rows > brim)
+            ys, xs = np.where(paint)
+            if not len(ys):
+                continue
+            # keep the part's shading: move its brightness onto the overalls'
+            # average, then take the overalls' blue nearest each pixel
+            own = lum(spr[ys, xs, :3].astype(float))
+            want = own - own.mean() + blue_lum.mean()
+            pick = np.abs(blue_lum[None, :] - want[:, None]).argmin(axis=1)
+            spr[ys, xs, :3] = blues[pick].astype(np.uint8)
+        out.append(spr)
+    return out
+
+
 def npcs():
     sprites, meta = {}, {}
     for sheet, y0, y1, cols, name, count, anchor in NPC_ROWS:
         frames = [sprite_masked(sheet, box) for box in row_boxes(sheet, y0, y1, cols)[:count]]
+        if name == "ladder":
+            frames = ladder_one_outfit(frames)
 
         # where each frame's anchor sits, measured from the frame's left edge
         def anchor_x(spr):
             solid = spr[..., 3] > 0
+            if anchor == "rail":
+                # the rightmost column that runs most of the frame's height
+                tall = np.where(solid.sum(axis=0) > 0.6 * spr.shape[0])[0]
+                return float(tall.max())
             rows = solid[: max(1, spr.shape[0] // 3)] if anchor == "head" else solid[-max(1, spr.shape[0] // 4) :]
             xs = np.where(rows.any(axis=0))[0]
             return (xs.min() + xs.max()) / 2

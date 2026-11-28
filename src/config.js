@@ -167,9 +167,8 @@ export const SCENERY = [
   // 2400 to 2720: solar array outside the simulation centre
   { x: 2540, sprite: "solar_panel", scale: 2 },
   { x: 2605, sprite: "lamp", scale: 2, glow: true },
-  // 2720 to 3040: parked outside the workshop
+  // 2720 to 3040: parked outside the workshop (the reader's bench is at 2920, in NPCS)
   { x: 2850, sprite: "cart", platform: true },
-  { x: 2920, sprite: "bicycle" },
   // the end of the street
   { x: 3150, sprite: "lamp", scale: 2, glow: true },
   { x: 3200, turbine: "small", scale: 2, back: true },
@@ -236,9 +235,13 @@ export const NPCS = [
       touch: "Hop up on the crates, the van or the cart. ▼ drops you back down.",
     },
   },
-  { x: 2165, sheet: "laptop", play: [0, 2, 0, 2, 1, 0, 2, 3], fps: 4 },
-  { x: 2672, sheet: "ladder", play: [0, 1], fps: 2.5 },
-  { x: 2972, sheet: "bench", play: [0, 1, 2, 3], fps: 6, rest: 2600 },
+  // at his desk against the control room's wall, left of its door
+  { x: 2050, sheet: "laptop", play: [0, 2, 0, 2, 1, 0, 2, 3], fps: 4 },
+  // the ladder leans on the workshop's left-hand pillar (x is its right rail);
+  // he steps on, climbs, works a while at the top and comes back down
+  { x: 2660, sheet: "ladder", play: [0, 1, 2, 3, 3, 3, 3, 3, 3, 2, 1, 0], fps: 2.5, rest: 2500 },
+  // reading on a bench outside the library
+  { x: 2920, sheet: "bench", play: [0, 1, 2, 3], fps: 6, rest: 2600 },
   { sheet: "bike", ride: { speed: 70, x: 300 }, play: [0, 1, 2, 3], fps: 8 },
 ];
 export const TALK_RANGE = 64; // how close you must be for an NPC to speak
@@ -270,9 +273,8 @@ export const ASSETS = {
     bg_city_lights: "bg_city_lights.png",
     bg_hills_lights: "bg_hills_lights.png",
     bg_beacons: "bg_beacons.png",
-    // the library's door marker: a closed book, open once visited
+    // the library's door marker: a closed book
     book_closed: "book/closed.png",
-    book_open: "book/open.png",
   },
   json: {
     npcs_meta: "npcs_meta.json",
